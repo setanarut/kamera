@@ -1,15 +1,5 @@
 // topdown kamera demo
 
-/*
-| Key   | Action                     |
-| ----- | -------------------------- |
-| WASD  | Move camera                |
-| E     | Zoom in                    |
-| Q     | Zoom out                   |
-| Space | Reset camera               |
-| Key 1 | look at the random object. |
-| Key 2 | Reset Zoom                 |
-*/
 package main
 
 import (
@@ -22,11 +12,36 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"github.com/setanarut/kamera"
+	"github.com/setanarut/kamera/v2"
 )
 
-type Vec2 struct {
+var Controls = `
+| Key       | Action                     |
+| -----     | -------------------------- |
+| WASD      | Move camera                |
+| T         | Add 0.6 Trauma             |
+| E         | Zoom in                    |
+| Q         | Zoom out                   |
+| Backspace | Reset Rotation/Zoom        |
+| R         | Rotate                     |
+| X         | look at the random object. |
+| L         | Toggle Lerp                |
+`
+
+type vec struct {
 	X, Y float64
+}
+
+type Game struct {
+	ScreenSize   *image.Point
+	GameObjects  []*ebiten.Image
+	MainCamera   *kamera.Camera
+	CamSpeed     float64
+	ZoomSpeed    float64
+	FontSize     float64
+	RandomPoints []vec
+	DIO          *ebiten.DrawImageOptions
+	halfSize     float64
 }
 
 // MakeObjects creates random images with random colors
@@ -39,28 +54,42 @@ func MakeObjects(n, size int) []*ebiten.Image {
 	return imgs
 }
 
-func RandomPoints(minX, maxX, minY, maxY float64, n int) []Vec2 {
-	points := make([]Vec2, n)
+func RandomPoints(minX, maxX, minY, maxY float64, n int) []vec {
+	points := make([]vec, n)
 	for i := range points {
-		points[i] = Vec2{X: minX + rand.Float64()*(maxX-minX), Y: minY + rand.Float64()*(maxY-minY)}
+		points[i] = vec{X: minX + rand.Float64()*(maxX-minX), Y: minY + rand.Float64()*(maxY-minY)}
 	}
 	return points
 }
 
-var delta Vec2
+var delta vec
 var tick = 0.0
+var TargetX, TargetY float64
 
 func (g *Game) Update() error {
+
+	// Use LookAt() only once in update
+	g.MainCamera.LookAt(TargetX, TargetY)
+
 	// reset delta
 	delta.X = 0
 	delta.Y = 0
-	if inpututil.IsKeyJustPressed(ebiten.Key1) {
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
 		index := rand.Intn(len(g.RandomPoints))
-		g.MainCamera.LookAt(g.RandomPoints[index].X, g.RandomPoints[index].Y)
+		TargetX = g.RandomPoints[index].X
+		TargetY = g.RandomPoints[index].Y
 	}
-	if ebiten.IsKeyPressed(ebiten.Key2) {
-		g.MainCamera.ZoomFactor = 0
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
+		g.MainCamera.Lerp = !g.MainCamera.Lerp
 	}
+
+	// trauma
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+		g.MainCamera.AddTrauma(0.6)
+	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		delta.X = -g.CamSpeed
 	}
@@ -73,14 +102,19 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		delta.Y = g.CamSpeed
 	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
+		delta.Y = g.CamSpeed
+	}
 	// Check for diagonal movement
 	if delta.X != 0 && delta.Y != 0 {
 		factor := g.CamSpeed / math.Sqrt(delta.X*delta.X+delta.Y*delta.Y)
 		delta.X *= factor
 		delta.Y *= factor
 	}
-	g.MainCamera.X += delta.X
-	g.MainCamera.Y += delta.Y
+
+	// Move Camera (WASD)
+	TargetX += delta.X
+	TargetY += delta.Y
 
 	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
 		if g.MainCamera.ZoomFactor > -4800 {
@@ -100,7 +134,7 @@ func (g *Game) Update() error {
 		g.MainCamera.Rotation -= 1
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
 		g.MainCamera.Reset()
 	}
 	// tick for rotation
@@ -120,28 +154,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.DIO.GeoM.Rotate(tick)
 		g.DIO.GeoM.Translate(randomPoint.X, randomPoint.Y)
 		// render objects
-		g.MainCamera.Render(g.GameObjects[i], g.DIO, screen)
+		g.MainCamera.Draw(g.GameObjects[i], g.DIO, screen)
 	}
-	ebitenutil.DebugPrint(screen, g.MainCamera.String())
+	ebitenutil.DebugPrintAt(screen, Controls, 10, 10)
+	ebitenutil.DebugPrintAt(screen, g.MainCamera.String(), 10, 200)
 	// draw circle at center of camera
-	vector.DrawFilledCircle(screen, float32(g.MainCamera.W)/2,
-		float32(g.MainCamera.H)/2, 4, color.White, false)
+
+	vector.DrawFilledCircle(screen, float32(g.ScreenSize.X/2), float32(g.ScreenSize.Y/2), 4, color.White, false)
 }
 
 func (oyn *Game) Layout(w, h int) (int, int) {
-	return oyn.InternalResolution.X, oyn.InternalResolution.Y
-}
-
-type Game struct {
-	InternalResolution *image.Point
-	GameObjects        []*ebiten.Image
-	MainCamera         *kamera.Camera
-	CamSpeed           float64
-	ZoomSpeed          float64
-	FontSize           float64
-	RandomPoints       []Vec2
-	DIO                *ebiten.DrawImageOptions
-	halfSize           float64
+	return oyn.ScreenSize.X, oyn.ScreenSize.Y
 }
 
 func main() {
@@ -150,18 +173,21 @@ func main() {
 	enemyCount := 2000
 	enemySize := 64
 	w, h := 854, 480
+
 	game := &Game{
-		InternalResolution: &image.Point{int(w), int(h)},
-		ZoomSpeed:          3,
-		GameObjects:        MakeObjects(enemyCount, enemySize),
-		MainCamera:         kamera.NewCamera(float64(w), float64(h)),
-		CamSpeed:           5,
-		RandomPoints:       RandomPoints(minf, maxf, minf, maxf, enemyCount),
-		DIO:                &ebiten.DrawImageOptions{},
-		halfSize:           float64(enemySize) / 2,
+		ScreenSize:   &image.Point{int(w), int(h)},
+		ZoomSpeed:    3,
+		GameObjects:  MakeObjects(enemyCount, enemySize),
+		MainCamera:   kamera.NewCamera(0, 0, float64(w), float64(h)),
+		CamSpeed:     5,
+		RandomPoints: RandomPoints(minf, maxf, minf, maxf, enemyCount),
+		DIO:          &ebiten.DrawImageOptions{},
+		halfSize:     float64(enemySize) / 2,
 	}
 
-	ebiten.SetWindowSize(game.InternalResolution.X, game.InternalResolution.Y)
+	game.MainCamera.Lerp = true
+
+	ebiten.SetWindowSize(game.ScreenSize.X, game.ScreenSize.Y)
 	ebiten.RunGame(game)
 
 }
