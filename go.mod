@@ -16,4 +16,4 @@ require (
 	golang.org/x/sys v0.18.0 // indirect
 )
 
-retract v2.0.0
+retract [v2.0.0, v2.2.0]
