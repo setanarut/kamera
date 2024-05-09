@@ -2,6 +2,12 @@
 
 [kamera](https://pkg.go.dev/github.com/setanarut/kamera) is a camera package for Ebitengine.
 
+## Features
+
+- Camera trauma shake effect with Opensimplex noise
+- Lerp motion
+- Rotate/Zoom
+
 ## Example
 
 Run example on your local machine
