@@ -1,4 +1,4 @@
-// topdown kamera demo
+// kamera demo
 
 package main
 
@@ -24,7 +24,7 @@ var Controls = `
 | Q         | Zoom out                   |
 | Backspace | Reset Rotation/Zoom        |
 | R         | Rotate                     |
-| X         | look at the random object. |
+| X         | Look at the random object. |
 | L         | Toggle Lerp                |
 `
 

@@ -11,10 +11,10 @@ import (
 // Camera object
 // Use the `Camera.LookAt()` function to align the center of the camera to the target.
 type Camera struct {
-	// Camera Width, Height, Rotation and Zoom factor
+	// Rotation and Zoom factor
 	Rotation, ZoomFactor float64
 
-	// Interpolate camera movement between target points
+	// Interpolate camera movement
 	Lerp bool
 
 	// Camera shake options
