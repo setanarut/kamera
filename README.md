@@ -1,6 +1,6 @@
 # kamera
 
-[kamera](https://pkg.go.dev/github.com/setanarut/kamera) is a camera package for Ebitengine.
+[kamera](https://pkg.go.dev/github.com/setanarut/kamera/v2) is a camera package for Ebitengine.
 
 ## Features
 
@@ -13,7 +13,7 @@
 Run example on your local machine
 
 ```console
-go run github.com/setanarut/kamera/examples/demo@latest
+go run github.com/setanarut/kamera/v2/examples/demo@latest
 ```
 
 ## Usage
