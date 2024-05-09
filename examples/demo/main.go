@@ -169,8 +169,8 @@ func (oyn *Game) Layout(w, h int) (int, int) {
 
 func main() {
 	// minf, maxf := math.SmallestNonzeroFloat64, math.MaxFloat64
-	minf, maxf := -5000.0, 5000.0
-	enemyCount := 2000
+	minf, maxf := -2000.0, 2000.0
+	enemyCount := 500
 	enemySize := 64
 	w, h := 854, 480
 

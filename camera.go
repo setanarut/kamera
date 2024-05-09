@@ -197,7 +197,7 @@ func (v vec2) Mult(s float64) vec2 {
 }
 
 type CameraShakeOptions struct {
-	Trauma, TimeScale, MaxShakeAngle, ShakeSizeX, ShakeSizeY, Decay float64
+	TimeScale, MaxShakeAngle, ShakeSizeX, ShakeSizeY, Decay float64
 }
 
 func DefaultCameraShakeOptions() CameraShakeOptions {
