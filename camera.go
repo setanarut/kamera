@@ -83,8 +83,10 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		cam.tick = 0
 	}
 }
-func (cam *Camera) AddTrauma(trauma_in float64) {
-	cam.trauma = clamp(cam.trauma+trauma_in, 0, 1)
+
+// AddTrauma adds trauma. factor is in the range [0-1]
+func (cam *Camera) AddTrauma(factor float64) {
+	cam.trauma = clamp(cam.trauma+factor, 0, 1)
 }
 
 // TopLeft() returns top left position of the camera rectangle
@@ -129,16 +131,16 @@ func (cam *Camera) String() string {
 }
 
 // ScreenToWorld converts screen-space coordinates to world-space
-func (cam *Camera) ScreenToWorld(screenX, screenY int) vec2 {
+func (cam *Camera) ScreenToWorld(screenX, screenY int) (worldX float64, worldY float64) {
 	g := ebiten.GeoM{}
 	cam.ApplyCameraTransform(&g)
 	if g.IsInvertible() {
 		g.Invert()
 		worldX, worldY := g.Apply(float64(screenX), float64(screenY))
-		return vec2{worldX, worldY}
+		return worldX, worldY
 	} else {
 		// When scaling it can happened that matrix is not invertable
-		return vec2{math.NaN(), math.NaN()}
+		return math.NaN(), math.NaN()
 	}
 }
 
