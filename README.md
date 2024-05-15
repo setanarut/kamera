@@ -26,7 +26,7 @@ func (g *Game) Update() error {
  }
 func (g *Game) Draw(screen *ebiten.Image) {
     // Apply all world-space `DrawImageOptions.GeoM` transformations before `Camera.Draw()`
-    g.MainCamera.Draw(player, playerDrawImageOptions, screen)
+    g.MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
  }
 ```
 
