@@ -1,7 +1,7 @@
 ## Kamera demo
 
 ```console
-go run github.com/setanarut/kamera/examples/demo@latest
+go run github.com/setanarut/kamera/v2/examples/demo@latest
 ```
 
 Run example on your local machine
