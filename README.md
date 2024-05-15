@@ -1,6 +1,12 @@
-# kamera
+[![GoDoc](https://godoc.org/github.com/setanarut/kamera?status.svg)](https://pkg.go.dev/github.com/setanarut/kamera/v2)
 
-[kamera](https://pkg.go.dev/github.com/setanarut/kamera/v2) is a camera package for Ebitengine.
+# Kamera
+
+Camera package for Ebitengine.
+
+```Go
+import "github.com/setanarut/kamera/v2"
+```
 
 ## Features
 
