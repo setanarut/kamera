@@ -37,17 +37,12 @@ type Game struct {
 	MainCamera   *kamera.Camera
 	RandomColors []*color.RGBA
 	RandomPoints []vec
+	Obj          *ebiten.Image
 	CamSpeed     float64
 	ZoomSpeed    float64
 	FontSize     float64
 	DIO          *ebiten.DrawImageOptions
 	halfSize     float64
-}
-
-var obj *ebiten.Image = ebiten.NewImage(40, 40)
-
-func init() {
-	obj.Fill(color.White)
 }
 
 var delta vec
@@ -148,7 +143,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.DIO.ColorScale.ScaleWithColor(g.RandomColors[i])
 
 		// Draw camera
-		g.MainCamera.Draw(obj, g.DIO, screen)
+		g.MainCamera.Draw(g.Obj, g.DIO, screen)
 	}
 
 	ebitenutil.DebugPrintAt(screen, Controls, 10, 10)
@@ -158,32 +153,34 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	vector.DrawFilledCircle(screen, float32(g.ScreenSize.X/2), float32(g.ScreenSize.Y/2), 4, color.White, false)
 }
 
-func (oyn *Game) Layout(w, h int) (int, int) {
-	return oyn.ScreenSize.X, oyn.ScreenSize.Y
+func (g *Game) Layout(w, h int) (int, int) {
+	return g.ScreenSize.X, g.ScreenSize.Y
 }
 
 func main() {
 	// minf, maxf := math.SmallestNonzeroFloat64, math.MaxFloat64
-	minf, maxf := -2000.0, 2000.0
-	enemyCount := 500
-	enemySize := 64
+	bound := 2000.0
+	objCount := 500
+	objSize := 64
 	w, h := 854, 480
 
-	game := &Game{
+	g := &Game{
 		ScreenSize:   &image.Point{int(w), int(h)},
 		ZoomSpeed:    3,
 		MainCamera:   kamera.NewCamera(0, 0, float64(w), float64(h)),
 		CamSpeed:     5,
-		RandomPoints: RandomPoints(minf, maxf, minf, maxf, enemyCount),
-		RandomColors: RandomColors(enemyCount),
+		RandomPoints: RandomPoints(-bound, bound, -bound, bound, objCount),
+		RandomColors: RandomColors(objCount),
+		Obj:          ebiten.NewImage(objSize, objSize),
 		DIO:          &ebiten.DrawImageOptions{},
-		halfSize:     float64(enemySize) / 2,
+		halfSize:     float64(objSize) / 2,
 	}
 
-	game.MainCamera.Lerp = true
-
-	ebiten.SetWindowSize(game.ScreenSize.X, game.ScreenSize.Y)
-	ebiten.RunGame(game)
+	g.MainCamera.Lerp = true
+	g.Obj.Fill(color.White)
+	TargetX, TargetY = g.RandomPoints[0].X, g.RandomPoints[0].Y
+	ebiten.SetWindowSize(g.ScreenSize.X, g.ScreenSize.Y)
+	ebiten.RunGame(g)
 
 }
 
