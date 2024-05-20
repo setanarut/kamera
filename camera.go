@@ -11,8 +11,9 @@ import (
 // Camera object
 // Use the `Camera.LookAt()` function to align the center of the camera to the target.
 type Camera struct {
-	// Rotation and Zoom factor
-	Rotation, ZoomFactor float64
+
+	// ZoomFactor
+	ZoomFactor float64
 
 	// Interpolate camera movement
 	Lerp bool
@@ -21,27 +22,24 @@ type Camera struct {
 	ShakeOptions CameraShakeOptions
 
 	// private
-	drawOptions                                     *ebiten.DrawImageOptions
-	delta, tick, trauma, w, h                       float64
-	tempTarget, centerOffset, topLeft, traumaOffset vec2
-	noise                                           opensimplex.Noise
+	drawOptions                                       *ebiten.DrawImageOptions
+	rotation, tempRotation, delta, tick, trauma, w, h float64
+	tempTarget, centerOffset, topLeft, traumaOffset   vec2
+	noise                                             opensimplex.Noise
 }
 
 // NewCamera returns new Camera
 func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 	target := vec2{lookAtX, lookAtY}
 	c := &Camera{
-		w:           w,
-		h:           h,
-		Rotation:    0,
-		ZoomFactor:  0,
-		drawOptions: &ebiten.DrawImageOptions{},
-		Lerp:        false,
-
-		// Shake options
+		ZoomFactor:   0,
+		Lerp:         false,
 		ShakeOptions: DefaultCameraShakeOptions(),
 		// private
-
+		w:            w,
+		h:            h,
+		rotation:     0,
+		drawOptions:  &ebiten.DrawImageOptions{},
 		trauma:       0,
 		traumaOffset: vec2{},
 		topLeft:      vec2{},
@@ -71,11 +69,15 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		var shake = math.Pow(cam.trauma, 2)
 		cam.traumaOffset.X = cam.noise.Eval3(cam.tick*cam.ShakeOptions.TimeScale, 0, 0) * cam.ShakeOptions.ShakeSizeX * shake
 		cam.traumaOffset.Y = cam.noise.Eval3(0, cam.tick*cam.ShakeOptions.TimeScale, 0) * cam.ShakeOptions.ShakeSizeY * shake
-		cam.Rotation = cam.noise.Eval3(0, 0, cam.tick*cam.ShakeOptions.TimeScale) * cam.ShakeOptions.MaxShakeAngle * shake
+		cam.tempRotation = cam.noise.Eval3(0, 0, cam.tick*cam.ShakeOptions.TimeScale) * cam.ShakeOptions.MaxShakeAngle * shake
 		cam.trauma = clamp(cam.trauma-(cam.delta*cam.ShakeOptions.Decay), 0, 1)
+	} else {
+		cam.tempRotation = 0.0
+
 	}
 
 	// offset
+	cam.tempRotation += cam.rotation
 	cam.topLeft = cam.topLeft.Add(cam.traumaOffset)
 	cam.topLeft = cam.topLeft.Add(cam.centerOffset)
 	cam.tick += cam.delta
@@ -100,6 +102,21 @@ func (cam *Camera) Target() (X float64, Y float64) {
 	return center.X, center.Y
 }
 
+// ActualRotation returns camera rotation (including the angle of trauma shaking.). The unit is radian.
+func (cam *Camera) ActualRotation() (angle float64) {
+	return cam.tempRotation
+}
+
+// Rotation returns camera rotation (The angle of trauma shake is not included.). The unit is radian.
+func (cam *Camera) Rotation() (angle float64) {
+	return cam.rotation
+}
+
+// SetRotation sets rotation. The unit is radian.
+func (cam *Camera) SetRotation(angle float64) {
+	cam.rotation = angle
+}
+
 // Width returns width  of the camera
 func (cam *Camera) Width() float64 {
 	return cam.w
@@ -118,7 +135,7 @@ func (cam *Camera) SetSize(w, h float64) {
 
 // Reset resets rotation and zoom factor to zero
 func (cam *Camera) Reset() {
-	cam.Rotation, cam.ZoomFactor = 0.0, 0.0
+	cam.rotation, cam.ZoomFactor = 0.0, 0.0
 }
 
 // String returns camera values as string
@@ -126,7 +143,7 @@ func (cam *Camera) String() string {
 	x, y := cam.Target()
 	return fmt.Sprintf(
 		"TargetX: %.1f\nTargetY: %.1f\nCam Rotation: %.1f\nZoom factor: %.2f\nLerp: %v",
-		x, y, cam.Rotation, cam.ZoomFactor, cam.Lerp,
+		x, y, cam.ActualRotation(), cam.ZoomFactor, cam.Lerp,
 	)
 }
 
@@ -148,7 +165,7 @@ func (cam *Camera) ScreenToWorld(screenX, screenY int) (worldX float64, worldY f
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
 	geoM.Translate(-cam.topLeft.X, -cam.topLeft.Y)                                               // camera movement
 	geoM.Translate(cam.centerOffset.X, cam.centerOffset.Y)                                       // rotate and scale from center.
-	geoM.Rotate(cam.Rotation * 2 * math.Pi / 360)                                                // rotate
+	geoM.Rotate(cam.tempRotation * 2 * math.Pi / 360)                                            // rotate
 	geoM.Scale(math.Pow(1.01, float64(cam.ZoomFactor)), math.Pow(1.01, float64(cam.ZoomFactor))) // apply zoom factor
 	geoM.Translate(math.Abs(cam.centerOffset.X), math.Abs(cam.centerOffset.Y))                   // restore center translation
 }

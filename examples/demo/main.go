@@ -34,32 +34,20 @@ type vec struct {
 
 type Game struct {
 	ScreenSize   *image.Point
-	GameObjects  []*ebiten.Image
 	MainCamera   *kamera.Camera
+	RandomColors []*color.RGBA
+	RandomPoints []vec
 	CamSpeed     float64
 	ZoomSpeed    float64
 	FontSize     float64
-	RandomPoints []vec
 	DIO          *ebiten.DrawImageOptions
 	halfSize     float64
 }
 
-// MakeObjects creates random images with random colors
-func MakeObjects(n, size int) []*ebiten.Image {
-	imgs := make([]*ebiten.Image, n)
-	for i := range imgs {
-		imgs[i] = ebiten.NewImage(size, size)
-		imgs[i].Fill(color.RGBA{uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255)), 255})
-	}
-	return imgs
-}
+var obj *ebiten.Image = ebiten.NewImage(40, 40)
 
-func RandomPoints(minX, maxX, minY, maxY float64, n int) []vec {
-	points := make([]vec, n)
-	for i := range points {
-		points[i] = vec{X: minX + rand.Float64()*(maxX-minX), Y: minY + rand.Float64()*(maxY-minY)}
-	}
-	return points
+func init() {
+	obj.Fill(color.White)
 }
 
 var delta vec
@@ -128,16 +116,16 @@ func (g *Game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		g.MainCamera.Rotation += 1
+		g.MainCamera.SetRotation(g.MainCamera.Rotation() + 1)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyF) {
-		g.MainCamera.Rotation -= 1
+		g.MainCamera.SetRotation(g.MainCamera.Rotation() - 1)
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
 		g.MainCamera.Reset()
 	}
-	// tick for rotation
+	// tick for object rotation
 	tick += 0.02
 	if tick > math.Pi*2 {
 		tick = 0.0
@@ -147,19 +135,26 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+
 	for i, randomPoint := range g.RandomPoints {
+
 		g.DIO.GeoM.Reset()
-		// rotate objects about center and move to random point
+		g.DIO.ColorScale.Reset()
+
 		g.DIO.GeoM.Translate(-g.halfSize, -g.halfSize)
 		g.DIO.GeoM.Rotate(tick)
 		g.DIO.GeoM.Translate(randomPoint.X, randomPoint.Y)
-		// render objects
-		g.MainCamera.Draw(g.GameObjects[i], g.DIO, screen)
+
+		g.DIO.ColorScale.ScaleWithColor(g.RandomColors[i])
+
+		// Draw camera
+		g.MainCamera.Draw(obj, g.DIO, screen)
 	}
+
 	ebitenutil.DebugPrintAt(screen, Controls, 10, 10)
 	ebitenutil.DebugPrintAt(screen, g.MainCamera.String(), 10, 200)
-	// draw circle at center of camera
 
+	// draw circle at center of camera
 	vector.DrawFilledCircle(screen, float32(g.ScreenSize.X/2), float32(g.ScreenSize.Y/2), 4, color.White, false)
 }
 
@@ -177,10 +172,10 @@ func main() {
 	game := &Game{
 		ScreenSize:   &image.Point{int(w), int(h)},
 		ZoomSpeed:    3,
-		GameObjects:  MakeObjects(enemyCount, enemySize),
 		MainCamera:   kamera.NewCamera(0, 0, float64(w), float64(h)),
 		CamSpeed:     5,
 		RandomPoints: RandomPoints(minf, maxf, minf, maxf, enemyCount),
+		RandomColors: RandomColors(enemyCount),
 		DIO:          &ebiten.DrawImageOptions{},
 		halfSize:     float64(enemySize) / 2,
 	}
@@ -190,4 +185,20 @@ func main() {
 	ebiten.SetWindowSize(game.ScreenSize.X, game.ScreenSize.Y)
 	ebiten.RunGame(game)
 
+}
+
+func RandomColors(n int) []*color.RGBA {
+	colors := make([]*color.RGBA, 0)
+	for range n {
+		colors = append(colors, &color.RGBA{uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255)), 255})
+	}
+	return colors
+}
+
+func RandomPoints(minX, maxX, minY, maxY float64, n int) []vec {
+	points := make([]vec, n)
+	for i := range points {
+		points[i] = vec{X: minX + rand.Float64()*(maxX-minX), Y: minY + rand.Float64()*(maxY-minY)}
+	}
+	return points
 }

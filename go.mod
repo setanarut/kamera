@@ -1,6 +1,6 @@
 module github.com/setanarut/kamera/v2
 
-go 1.22.2
+go 1.22.3
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.7.3
