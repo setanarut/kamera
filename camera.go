@@ -165,7 +165,7 @@ func (cam *Camera) ScreenToWorld(screenX, screenY int) (worldX float64, worldY f
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
 	geoM.Translate(-cam.topLeft.X, -cam.topLeft.Y)                                               // camera movement
 	geoM.Translate(cam.centerOffset.X, cam.centerOffset.Y)                                       // rotate and scale from center.
-	geoM.Rotate(cam.tempRotation * 2 * math.Pi / 360)                                            // rotate
+	geoM.Rotate(cam.tempRotation)                                                                // rotate
 	geoM.Scale(math.Pow(1.01, float64(cam.ZoomFactor)), math.Pow(1.01, float64(cam.ZoomFactor))) // apply zoom factor
 	geoM.Translate(math.Abs(cam.centerOffset.X), math.Abs(cam.centerOffset.Y))                   // restore center translation
 }
@@ -214,7 +214,12 @@ func (v vec2) Mult(s float64) vec2 {
 }
 
 type CameraShakeOptions struct {
-	TimeScale, MaxShakeAngle, ShakeSizeX, ShakeSizeY, Decay float64
+	TimeScale float64
+	// Max shake angle (radians)
+	MaxShakeAngle float64
+	ShakeSizeX    float64
+	ShakeSizeY    float64
+	Decay         float64
 }
 
 func DefaultCameraShakeOptions() CameraShakeOptions {
@@ -222,7 +227,7 @@ func DefaultCameraShakeOptions() CameraShakeOptions {
 	return CameraShakeOptions{
 		ShakeSizeX:    150.0,
 		ShakeSizeY:    150.0,
-		MaxShakeAngle: 30,
+		MaxShakeAngle: 0.5235987756, // 30 degree
 		TimeScale:     16,
 		Decay:         0.333,
 	}

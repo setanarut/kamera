@@ -111,10 +111,10 @@ func (g *Game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		g.MainCamera.SetRotation(g.MainCamera.Rotation() + 1)
+		g.MainCamera.SetRotation(g.MainCamera.Rotation() + 0.01)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyF) {
-		g.MainCamera.SetRotation(g.MainCamera.Rotation() - 1)
+		g.MainCamera.SetRotation(g.MainCamera.Rotation() - 0.01)
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
