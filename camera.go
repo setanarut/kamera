@@ -16,7 +16,8 @@ type Camera struct {
 	ZoomFactor float64
 
 	// Interpolate camera movement
-	Lerp bool
+	Lerp      bool
+	LerpSpeed float64
 
 	// Camera shake options
 	ShakeOptions CameraShakeOptions
@@ -34,6 +35,7 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 	c := &Camera{
 		ZoomFactor:   0,
 		Lerp:         false,
+		LerpSpeed:    0.1,
 		ShakeOptions: DefaultCameraShakeOptions(),
 		// private
 		w:            w,
@@ -59,7 +61,7 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 func (cam *Camera) LookAt(targetX, targetY float64) {
 	target := vec2{targetX, targetY}
 	if cam.Lerp {
-		cam.tempTarget = cam.tempTarget.Lerp(target, 0.1)
+		cam.tempTarget = cam.tempTarget.Lerp(target, cam.LerpSpeed)
 		cam.topLeft = cam.tempTarget
 	} else {
 		cam.topLeft = target
