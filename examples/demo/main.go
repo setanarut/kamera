@@ -85,9 +85,6 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		delta.Y = g.CamSpeed
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-		delta.Y = g.CamSpeed
-	}
 	// Check for diagonal movement
 	if delta.X != 0 && delta.Y != 0 {
 		factor := g.CamSpeed / math.Sqrt(delta.X*delta.X+delta.Y*delta.Y)
