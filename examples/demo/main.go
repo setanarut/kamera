@@ -54,7 +54,6 @@ func (g *Game) Update() error {
 	// Use LookAt() only once in update
 	g.MainCamera.LookAt(TargetX, TargetY)
 
-	// reset delta
 	delta.X = 0
 	delta.Y = 0
 
@@ -85,7 +84,7 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		delta.Y = g.CamSpeed
 	}
-	// Check for diagonal movement
+	// normalize diagonal vector
 	if delta.X != 0 && delta.Y != 0 {
 		factor := g.CamSpeed / math.Sqrt(delta.X*delta.X+delta.Y*delta.Y)
 		delta.X *= factor
@@ -155,7 +154,6 @@ func (g *Game) Layout(w, h int) (int, int) {
 }
 
 func main() {
-	// minf, maxf := math.SmallestNonzeroFloat64, math.MaxFloat64
 	bound := 2000.0
 	objCount := 500
 	objSize := 64
