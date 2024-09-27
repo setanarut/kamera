@@ -28,11 +28,11 @@ A pseudo code:
 
 ```Go
 func (g *Game) Update() error {
-    g.MainCamera.LookAt(player.X, player.Y)
+  g.MainCamera.LookAt(player.X, player.Y)
+  // Apply all world-space `playerDrawImageOptions.GeoM{}` transform here
  }
 func (g *Game) Draw(screen *ebiten.Image) {
-    // Apply all world-space `DrawImageOptions.GeoM` transformations before `Camera.Draw()`
-    g.MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
+  g.MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
  }
 ```
 
