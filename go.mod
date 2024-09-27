@@ -16,4 +16,7 @@ require (
 	golang.org/x/sys v0.25.0 // indirect
 )
 
-retract [v2.0.0, v2.2.0]
+retract (
+	v2.6.0 // nil pointer dereference (jpg) in demo code.
+	[v2.0.0, v2.2.0]
+)

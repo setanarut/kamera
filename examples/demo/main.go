@@ -3,6 +3,8 @@
 package main
 
 import (
+	"bytes"
+	"image"
 	"image/color"
 	_ "image/jpeg"
 	"log"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/setanarut/kamera/v2"
@@ -28,16 +31,15 @@ var (
 | R            | Rotate                     |
 | L            | Toggle Lerp                |
 `
-	w, h                                float64                  = 700, 532
+	w, h                                float64                  = 1024, 768
 	camSpeed, zoomSpeedFactor, rotSpeed float64                  = 1.01, 1.02, 0.02
 	targetX, targetY                    float64                  = w / 2, h / 2
 	cam                                 *kamera.Camera           = kamera.NewCamera(targetX, targetY, w, h)
 	dio                                 *ebiten.DrawImageOptions = &ebiten.DrawImageOptions{}
-	img                                 *ebiten.Image
+	gophersImage                        *ebiten.Image
 )
 
 func init() {
-	img, _, _ = ebitenutil.NewImageFromFile("polen.jpg")
 	cam.Lerp = true
 }
 
@@ -102,7 +104,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw camera
-	cam.Draw(img, dio, screen)
+	cam.Draw(gophersImage, dio, screen)
 
 	// Draw camera crosshair
 	cx, cy := float32(w/2), float32(h/2)
@@ -118,7 +120,11 @@ func (g *Game) Layout(width, height int) (int, int) {
 }
 
 func main() {
-
+	img, _, err := image.Decode(bytes.NewReader(images.Spritesheet_png))
+	if err != nil {
+		log.Fatal(err)
+	}
+	gophersImage = ebiten.NewImageFromImage(img)
 	ebiten.SetWindowSize(int(w), int(h))
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
