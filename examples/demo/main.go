@@ -3,10 +3,10 @@
 package main
 
 import (
-	"image"
 	"image/color"
-	"math"
-	"math/rand"
+	_ "image/jpeg"
+	"log"
+	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -15,182 +15,112 @@ import (
 	"github.com/setanarut/kamera/v2"
 )
 
-var Controls = `
-| Key       | Action                     |
-| -----     | -------------------------- |
-| WASD      | Move camera                |
-| T         | Add 0.6 Trauma             |
-| E         | Zoom in                    |
-| Q         | Zoom out                   |
-| Backspace | Reset Rotation/Zoom        |
-| R         | Rotate                     |
-| X         | Look at the random object. |
-| L         | Toggle Lerp                |
+var (
+	Controls = `
+| Key          | Action                     |
+| ------------ | -------------------------- |
+| WASD         | Move camera                |
+| T            | Add 0.6 Trauma             |
+| E/Q          | Zoom in/out                |
+| Tab          | Look at random position    |
+| ArrowUp/Down | Zoom 2x                    |
+| Backspace    | Reset camera               |
+| R            | Rotate                     |
+| L            | Toggle Lerp                |
 `
+	w, h                                float64                  = 700, 532
+	camSpeed, zoomSpeedFactor, rotSpeed float64                  = 1.01, 1.02, 0.02
+	targetX, targetY                    float64                  = w / 2, h / 2
+	cam                                 *kamera.Camera           = kamera.NewCamera(targetX, targetY, w, h)
+	dio                                 *ebiten.DrawImageOptions = &ebiten.DrawImageOptions{}
+	img                                 *ebiten.Image
+)
 
-type vec struct {
-	X, Y float64
+func init() {
+	img, _, _ = ebitenutil.NewImageFromFile("polen.jpg")
+	cam.Lerp = true
 }
 
-type Game struct {
-	ScreenSize   *image.Point
-	MainCamera   *kamera.Camera
-	RandomColors []*color.RGBA
-	RandomPoints []vec
-	Obj          *ebiten.Image
-	CamSpeed     float64
-	ZoomSpeed    float64
-	FontSize     float64
-	DIO          *ebiten.DrawImageOptions
-	halfSize     float64
-}
-
-var delta vec
-var tick = 0.0
-var TargetX, TargetY float64
+type Game struct{}
 
 func (g *Game) Update() error {
-
 	// Use LookAt() only once in update
-	g.MainCamera.LookAt(TargetX, TargetY)
-
-	delta.X = 0
-	delta.Y = 0
-
-	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
-		index := rand.Intn(len(g.RandomPoints))
-		TargetX = g.RandomPoints[index].X
-		TargetY = g.RandomPoints[index].Y
-	}
+	cam.LookAt(targetX, targetY)
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-		g.MainCamera.Lerp = !g.MainCamera.Lerp
+		cam.Lerp = !cam.Lerp
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+		cam.AddTrauma(0.6)
 	}
 
-	// trauma
-	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
-		g.MainCamera.AddTrauma(0.6)
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+		cam.ZoomFactor *= 2
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+		cam.ZoomFactor /= 2
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+		targetX, targetY = rand.Float64()*w, rand.Float64()*h
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		delta.X = -g.CamSpeed
+		targetX /= camSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		delta.X = g.CamSpeed
+		targetX *= camSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		delta.Y = -g.CamSpeed
+		targetY /= camSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		delta.Y = g.CamSpeed
+		targetY *= camSpeed
 	}
-	// normalize diagonal vector
-	if delta.X != 0 && delta.Y != 0 {
-		factor := g.CamSpeed / math.Sqrt(delta.X*delta.X+delta.Y*delta.Y)
-		delta.X *= factor
-		delta.Y *= factor
-	}
-
-	// Move Camera (WASD)
-	TargetX += delta.X
-	TargetY += delta.Y
 
 	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
-		if g.MainCamera.ZoomFactor > -4800 {
-			g.MainCamera.ZoomFactor -= g.ZoomSpeed
-		}
+		cam.ZoomFactor /= zoomSpeedFactor
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyE) { // zoom in
-		if g.MainCamera.ZoomFactor < 4800 {
-			g.MainCamera.ZoomFactor += g.ZoomSpeed
-		}
+		cam.ZoomFactor *= zoomSpeedFactor
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		g.MainCamera.SetRotation(g.MainCamera.Rotation() + 0.01)
+		cam.SetAngle(cam.Angle() + rotSpeed)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyF) {
-		g.MainCamera.SetRotation(g.MainCamera.Rotation() - 0.01)
+		cam.SetAngle(cam.Angle() - rotSpeed)
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
-		g.MainCamera.Reset()
-	}
-	// tick for object rotation
-	tick += 0.02
-	if tick > math.Pi*2 {
-		tick = 0.0
+		targetX, targetY = w/2, h/2
+		cam.Reset()
 	}
 	return nil
-
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	for i, randomPoint := range g.RandomPoints {
+	// Draw camera
+	cam.Draw(img, dio, screen)
 
-		g.DIO.GeoM.Reset()
-		g.DIO.ColorScale.Reset()
-
-		g.DIO.GeoM.Translate(-g.halfSize, -g.halfSize)
-		g.DIO.GeoM.Rotate(tick)
-		g.DIO.GeoM.Translate(randomPoint.X, randomPoint.Y)
-
-		g.DIO.ColorScale.ScaleWithColor(g.RandomColors[i])
-
-		// Draw camera
-		g.MainCamera.Draw(g.Obj, g.DIO, screen)
-	}
-
+	// Draw camera crosshair
+	cx, cy := float32(w/2), float32(h/2)
+	vector.StrokeLine(screen, cx-10, cy, cx+10, cy, 1, color.White, true)
+	vector.StrokeLine(screen, cx, cy-10, cx, cy+10, 1, color.White, true)
+	// HUD
 	ebitenutil.DebugPrintAt(screen, Controls, 10, 10)
-	ebitenutil.DebugPrintAt(screen, g.MainCamera.String(), 10, 200)
-
-	// draw circle at center of camera
-	vector.DrawFilledCircle(screen, float32(g.ScreenSize.X/2), float32(g.ScreenSize.Y/2), 4, color.White, false)
+	ebitenutil.DebugPrintAt(screen, cam.String(), 10, 200)
 }
 
-func (g *Game) Layout(w, h int) (int, int) {
-	return g.ScreenSize.X, g.ScreenSize.Y
+func (g *Game) Layout(width, height int) (int, int) {
+	return int(w), int(h)
 }
 
 func main() {
-	bound := 2000.0
-	objCount := 500
-	objSize := 64
-	w, h := 854, 480
 
-	g := &Game{
-		ScreenSize:   &image.Point{int(w), int(h)},
-		ZoomSpeed:    3,
-		MainCamera:   kamera.NewCamera(0, 0, float64(w), float64(h)),
-		CamSpeed:     5,
-		RandomPoints: RandomPoints(-bound, bound, -bound, bound, objCount),
-		RandomColors: RandomColors(objCount),
-		Obj:          ebiten.NewImage(objSize, objSize),
-		DIO:          &ebiten.DrawImageOptions{},
-		halfSize:     float64(objSize) / 2,
+	ebiten.SetWindowSize(int(w), int(h))
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Fatal(err)
 	}
-
-	g.MainCamera.Lerp = true
-	g.Obj.Fill(color.White)
-	TargetX, TargetY = g.RandomPoints[0].X, g.RandomPoints[0].Y
-	ebiten.SetWindowSize(g.ScreenSize.X, g.ScreenSize.Y)
-	ebiten.RunGame(g)
-
-}
-
-func RandomColors(n int) []*color.RGBA {
-	colors := make([]*color.RGBA, 0)
-	for range n {
-		colors = append(colors, &color.RGBA{uint8(rand.Intn(255)), uint8(rand.Intn(255)), uint8(rand.Intn(255)), 255})
-	}
-	return colors
-}
-
-func RandomPoints(minX, maxX, minY, maxY float64, n int) []vec {
-	points := make([]vec, n)
-	for i := range points {
-		points[i] = vec{X: minX + rand.Float64()*(maxX-minX), Y: minY + rand.Float64()*(maxY-minY)}
-	}
-	return points
 }
