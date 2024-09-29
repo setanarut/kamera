@@ -23,7 +23,7 @@ var (
 | Key          | Action                     |
 | ------------ | -------------------------- |
 | WASD         | Move camera                |
-| T            | Add 0.6 Trauma             |
+| T            | Add 1.0 Trauma             |
 | E/Q          | Zoom in/out                |
 | Tab          | Look at random position    |
 | ArrowUp/Down | Zoom 2x                    |
@@ -53,7 +53,7 @@ func (g *Game) Update() error {
 		cam.Lerp = !cam.Lerp
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
-		cam.AddTrauma(0.6)
+		cam.AddTrauma(1.0)
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
