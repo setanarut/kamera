@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/ojrac/opensimplex-go"
+	"github.com/setanarut/fastnoise"
 )
 
 // Camera object
@@ -20,13 +20,12 @@ type Camera struct {
 	LerpSpeed float64
 
 	// Camera shake options
-	ShakeOptions CameraShakeOptions
+	ShakeOptions *CameraShakeOptions
 
 	// private
-	drawOptions                                         *ebiten.DrawImageOptions
-	rotation, actualRotation, delta, tick, trauma, w, h float64
-	tempTarget, centerOffset, topLeft, traumaOffset     vec2
-	noise                                               opensimplex.Noise
+	drawOptions                                                        *ebiten.DrawImageOptions
+	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake float64
+	tempTarget, centerOffset, topLeft, traumaOffset                    vec2
 }
 
 // NewCamera returns new Camera
@@ -38,28 +37,45 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		LerpSpeed:    0.1,
 		ShakeOptions: DefaultCameraShakeOptions(),
 		// private
-		w:            w,
-		h:            h,
-		rotation:     0,
-		trauma:       0,
-		drawOptions:  &ebiten.DrawImageOptions{},
-		centerOffset: vec2{-(w * 0.5), -(h * 0.5)},
-		traumaOffset: vec2{},
-		topLeft:      vec2{},
-		tempTarget:   vec2{},
-		noise:        opensimplex.New(1),
-		delta:        1.0 / 60.0,
-		tick:         0,
+		w:               w,
+		h:               h,
+		angle:           0,
+		zoomFactorShake: 1.0,
+		trauma:          0,
+		drawOptions:     &ebiten.DrawImageOptions{},
+		centerOffset:    vec2{-(w * 0.5), -(h * 0.5)},
+		traumaOffset:    vec2{},
+		topLeft:         vec2{},
+		tempTarget:      vec2{},
+		tickSpeed:       1.0 / 60.0,
+		tick:            0,
 	}
+
 	c.LookAt(lookAtX, lookAtY)
 	c.tempTarget = target
 	return c
 }
 
+func DefaultCameraShakeOptions() *CameraShakeOptions {
+	opt := &CameraShakeOptions{
+		Noise:         fastnoise.New[float64](),
+		MaxX:          10.0,
+		MaxY:          10.0,
+		MaxAngle:      0.05, // 5 degree
+		MaxZoomFactor: 0.1,
+		Decay:         0.666,
+		TimeScale:     10,
+	}
+	opt.Noise.Frequency = 0.5
+	return opt
+}
+
 // LookAt aligns the midpoint of the camera viewport to the target.
 // Use this function only once in Update() and change only the TargetX TargetY variables
 func (cam *Camera) LookAt(targetX, targetY float64) {
+
 	target := vec2{targetX, targetY}
+
 	if cam.Lerp {
 		cam.tempTarget = cam.tempTarget.Lerp(target, cam.LerpSpeed)
 		cam.topLeft = cam.tempTarget
@@ -68,22 +84,37 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 	}
 
 	if cam.trauma > 0 {
-		var shake = math.Pow(cam.trauma, 2)
-		cam.traumaOffset.X = cam.noise.Eval3(cam.tick*cam.ShakeOptions.TimeScale, 0, 0) * cam.ShakeOptions.ShakeSizeX * shake
-		cam.traumaOffset.Y = cam.noise.Eval3(0, cam.tick*cam.ShakeOptions.TimeScale, 0) * cam.ShakeOptions.ShakeSizeY * shake
-		cam.actualRotation = cam.noise.Eval3(0, 0, cam.tick*cam.ShakeOptions.TimeScale) * cam.ShakeOptions.MaxShakeAngle * shake
-		cam.trauma = clamp(cam.trauma-(cam.delta*cam.ShakeOptions.Decay), 0, 1)
-	} else {
-		cam.actualRotation = 0.0
 
+		var shake = math.Pow(cam.trauma, 2)
+
+		noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale, 0, 0)
+		noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(0, cam.tick*cam.ShakeOptions.TimeScale, 0)
+		noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(0, 0, cam.tick*cam.ShakeOptions.TimeScale)
+
+		cam.traumaOffset.X = noiseValueX * cam.ShakeOptions.MaxX * shake
+		cam.traumaOffset.Y = noiseValueY * cam.ShakeOptions.MaxY * shake
+		cam.actualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
+
+		noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale+300, 0, 0)
+		cam.zoomFactorShake = (noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake)
+		cam.zoomFactorShake *= cam.ZoomFactor
+		cam.zoomFactorShake += cam.ZoomFactor
+
+		cam.trauma = clamp(cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay), 0, 1)
+
+	} else {
+		cam.actualAngle = 0.0
+		cam.zoomFactorShake = cam.ZoomFactor
 	}
 
 	// offset
-	cam.actualRotation += cam.rotation
+	cam.actualAngle += cam.angle
 	cam.topLeft = cam.topLeft.Add(cam.traumaOffset)
 	cam.topLeft = cam.topLeft.Add(cam.centerOffset)
-	cam.tick += cam.delta
-	if cam.tick > 60000 {
+
+	// tick
+	cam.tick += cam.tickSpeed
+	if cam.tick > 1000000 {
 		cam.tick = 0
 	}
 }
@@ -106,17 +137,17 @@ func (cam *Camera) Target() (X float64, Y float64) {
 
 // ActualAngle returns camera rotation angle (including the angle of trauma shaking.). The unit is radian.
 func (cam *Camera) ActualAngle() (angle float64) {
-	return cam.actualRotation
+	return cam.actualAngle
 }
 
 // Angle returns camera rotation angle (The angle of trauma shake is not included.). The unit is radian.
 func (cam *Camera) Angle() (angle float64) {
-	return cam.rotation
+	return cam.angle
 }
 
 // SetAngle sets rotation. The unit is radian.
 func (cam *Camera) SetAngle(angle float64) {
-	cam.rotation = angle
+	cam.angle = angle
 }
 
 // Width returns width  of the camera
@@ -137,7 +168,7 @@ func (cam *Camera) SetSize(w, h float64) {
 
 // Reset resets rotation and zoom factor to zero
 func (cam *Camera) Reset() {
-	cam.rotation, cam.ZoomFactor = 0.0, 1.0
+	cam.angle, cam.ZoomFactor, cam.zoomFactorShake = 0.0, 1.0, 1.0
 }
 
 // String returns camera values as string
@@ -145,7 +176,7 @@ func (cam *Camera) String() string {
 	x, y := cam.Target()
 	return fmt.Sprintf(
 		"TargetX: %.1f\nTargetY: %.1f\nCam Rotation: %.1f\nZoom factor: %.2f\nLerp: %v",
-		x, y, cam.ActualAngle(), cam.ZoomFactor, cam.Lerp,
+		x, y, cam.ActualAngle(), cam.zoomFactorShake, cam.Lerp,
 	)
 }
 
@@ -167,8 +198,8 @@ func (cam *Camera) ScreenToWorld(screenX, screenY int) (worldX float64, worldY f
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
 	geoM.Translate(-cam.topLeft.X, -cam.topLeft.Y)                             // camera movement
 	geoM.Translate(cam.centerOffset.X, cam.centerOffset.Y)                     // rotate and scale from center.
-	geoM.Rotate(cam.actualRotation)                                            // rotate
-	geoM.Scale(cam.ZoomFactor, cam.ZoomFactor)                                 // apply zoom factor
+	geoM.Rotate(cam.actualAngle)                                               // rotate
+	geoM.Scale(cam.zoomFactorShake, cam.zoomFactorShake)                       // apply zoom factor
 	geoM.Translate(math.Abs(cam.centerOffset.X), math.Abs(cam.centerOffset.Y)) // restore center translation
 }
 
@@ -181,22 +212,12 @@ func (cam *Camera) Draw(worldObject *ebiten.Image, worldObjectOps *ebiten.DrawIm
 }
 
 type CameraShakeOptions struct {
-	TimeScale float64
-	// Max shake angle (radians)
-	MaxShakeAngle float64
-	ShakeSizeX    float64
-	ShakeSizeY    float64
-	Decay         float64
-}
-
-func DefaultCameraShakeOptions() CameraShakeOptions {
-
-	return CameraShakeOptions{
-		ShakeSizeX:    150.0,
-		ShakeSizeY:    150.0,
-		MaxShakeAngle: 0.5235987756, // 30 degree
-		TimeScale:     16,
-		Decay:         0.333,
-	}
-
+	// Noise generator for noise types and settings.
+	Noise         *fastnoise.State[float64]
+	MaxX          float64 // Maximum X-axis shake. 0 means disabled
+	MaxY          float64 // Maximum Y-axis shake. 0 means disabled
+	MaxAngle      float64 // Max shake angle (radians). 0 means disabled
+	MaxZoomFactor float64 // Zoom factor strength [1-0]. 0 means disabled
+	TimeScale     float64 // Noise time domain speed
+	Decay         float64 // Decay for trauma
 }
