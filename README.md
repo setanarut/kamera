@@ -10,7 +10,7 @@ import "github.com/setanarut/kamera/v2"
 
 ## Features
 
-- Camera trauma shake effect with Opensimplex noise
+- Camera shake effect with [fastnoise](https://github.com/setanarut/fastnoise) library noise types.
 - Lerp motion
 - Rotate/Zoom
 
