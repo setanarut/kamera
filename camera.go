@@ -61,7 +61,7 @@ func DefaultCameraShakeOptions() *CameraShakeOptions {
 		Noise:         fastnoise.New[float64](),
 		MaxX:          10.0,
 		MaxY:          10.0,
-		MaxAngle:      0.05, // 5 degree
+		MaxAngle:      0.05,
 		MaxZoomFactor: 0.1,
 		Decay:         0.666,
 		TimeScale:     10,
