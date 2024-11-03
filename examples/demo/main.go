@@ -20,28 +20,25 @@ import (
 
 var (
 	Controls = `
-| Key          | Action                     |
-| ------------ | -------------------------- |
-| WASD         | Move camera                |
-| T            | Add 1.0 Trauma             |
-| E/Q          | Zoom in/out                |
-| Tab          | Look at random position    |
-| ArrowUp/Down | Zoom 2x                    |
-| Backspace    | Reset camera               |
-| R            | Rotate                     |
-| L            | Toggle Lerp                |
+Key           Action                     
+------------  ------------------------
+WASD          Move camera                
+T             Add 1.0 Trauma             
+E/Q           Zoom in/out                
+Tab           Look at random position    
+ArrowUp/Down  Zoom 2x                    
+Backspace     Reset camera               
+R             Rotate                     
+L             Toggle Lerp                
+K             Toggle Shake               
 `
-	w, h                                float64                  = 1024, 768
-	camSpeed, zoomSpeedFactor, rotSpeed float64                  = 1.01, 1.02, 0.02
-	targetX, targetY                    float64                  = w / 2, h / 2
-	cam                                 *kamera.Camera           = kamera.NewCamera(targetX, targetY, w, h)
-	dio                                 *ebiten.DrawImageOptions = &ebiten.DrawImageOptions{}
-	gophersImage                        *ebiten.Image
+	w, h                                = 1024., 768.
+	camSpeed, zoomSpeedFactor, rotSpeed = 7.0, 1.02, 0.02
+	targetX, targetY                    = w / 2, h / 2
+	cam                                 = kamera.NewCamera(targetX, targetY, w, h)
+	dio                                 = &ebiten.DrawImageOptions{}
+	spriteSheet                         *ebiten.Image
 )
-
-func init() {
-	cam.Lerp = true
-}
 
 type Game struct{}
 
@@ -50,7 +47,10 @@ func (g *Game) Update() error {
 	cam.LookAt(targetX, targetY)
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-		cam.Lerp = !cam.Lerp
+		cam.LerpEnabled = !cam.LerpEnabled
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyK) {
+		cam.ShakeEnabled = !cam.ShakeEnabled
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
 		cam.AddTrauma(1.0)
@@ -68,16 +68,16 @@ func (g *Game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		targetX /= camSpeed
+		targetX -= camSpeed / cam.ZoomFactor
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		targetX *= camSpeed
+		targetX += camSpeed / cam.ZoomFactor
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		targetY /= camSpeed
+		targetY -= camSpeed / cam.ZoomFactor
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		targetY *= camSpeed
+		targetY += camSpeed / cam.ZoomFactor
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
@@ -104,7 +104,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw camera
-	cam.Draw(gophersImage, dio, screen)
+	cam.Draw(spriteSheet, dio, screen)
 
 	// Draw camera crosshair
 	cx, cy := float32(w/2), float32(h/2)
@@ -120,11 +120,14 @@ func (g *Game) Layout(width, height int) (int, int) {
 }
 
 func main() {
+	cam.LerpEnabled = true
+	cam.ShakeEnabled = true
+
 	img, _, err := image.Decode(bytes.NewReader(images.Spritesheet_png))
 	if err != nil {
 		log.Fatal(err)
 	}
-	gophersImage = ebiten.NewImageFromImage(img)
+	spriteSheet = ebiten.NewImageFromImage(img)
 	ebiten.SetWindowSize(int(w), int(h))
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
