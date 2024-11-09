@@ -25,8 +25,9 @@ type Camera struct {
 
 	// If LerpEnabled is true, the camera moves with linear interpolation.
 	//
-	// The default value is false
+	// The default value is false.
 	LerpEnabled bool
+	
 	// LerpSpeed ​​is the interpolation speed in the range [0-1].
 	//
 	// The default value is 0.1.
@@ -36,6 +37,7 @@ type Camera struct {
 	//
 	// The default value is false
 	ShakeEnabled bool
+	
 	// ShakeOptions holds the camera shake options.
 	ShakeOptions *CameraShakeOptions
 
@@ -165,7 +167,7 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 	}
 }
 
-// AddTrauma adds trauma. factor is in the range [0-1]
+// AddTrauma adds trauma. Factor is in the range [0-1]
 func (cam *Camera) AddTrauma(factor float64) {
 	if cam.ShakeEnabled {
 		cam.trauma = clamp(cam.trauma+factor, 0, 1)
@@ -189,12 +191,16 @@ func (cam *Camera) Center() (X float64, Y float64) {
 	return center.X, center.Y
 }
 
-// ActualAngle returns camera rotation angle (including the angle of trauma shaking.). The unit is radian.
+// ActualAngle returns camera rotation angle (including the angle of trauma shaking.).
+//
+// The unit is radian.
 func (cam *Camera) ActualAngle() (angle float64) {
 	return cam.actualAngle
 }
 
-// Angle returns camera rotation angle (The angle of trauma shake is not included.). The unit is radian.
+// Angle returns camera rotation angle (The angle of trauma shake is not included.).
+//
+// The unit is radian.
 func (cam *Camera) Angle() (angle float64) {
 	return cam.angle
 }
@@ -209,7 +215,7 @@ func (cam *Camera) Width() float64 {
 	return cam.w
 }
 
-// Width returns height of the camera
+// Height returns height of the camera
 func (cam *Camera) Height() float64 {
 	return cam.h
 }
