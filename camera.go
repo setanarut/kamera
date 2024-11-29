@@ -27,17 +27,17 @@ type Camera struct {
 	//
 	// The default value is false.
 	LerpEnabled bool
-	
+
 	// LerpSpeed ​​is the interpolation speed in the range [0-1].
 	//
 	// The default value is 0.1.
 	LerpSpeed float64
 
-	// If ShakeEnabled is false, AddTrauma() has no effect.
+	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
 	// The default value is false
 	ShakeEnabled bool
-	
+
 	// ShakeOptions holds the camera shake options.
 	ShakeOptions *CameraShakeOptions
 
@@ -164,6 +164,8 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		cam.zoomFactorShake = cam.ZoomFactor
 		cam.actualAngle = cam.angle
 		cam.topLeft = cam.topLeft.Add(cam.centerOffset)
+		cam.trauma = 0
+		cam.traumaOffset = vec2{}
 	}
 }
 
