@@ -48,19 +48,6 @@ func (v vec2) Dot(other vec2) float64 {
 	return v.X*other.X + v.Y*other.Y
 }
 
-// Spherical linearly interpolate between this and other.
-func (v vec2) LerpSpherical(other vec2, t float64) vec2 {
-	dot := v.Unit().Dot(other.Unit())
-	omega := math.Acos(clamp(dot, -1, 1))
-
-	if omega < 1e-3 {
-		return v.Lerp(other, t)
-	}
-
-	denom := 1.0 / math.Sin(omega)
-	return v.Scale(math.Sin((1.0-t)*omega) * denom).Add(other.Scale(math.Sin(t*omega) * denom))
-}
-
 // clamp returns f clamped to [low, high]
 func clamp(f, low, high float64) float64 {
 	if f < low {

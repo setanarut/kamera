@@ -262,6 +262,13 @@ func (cam *Camera) ScreenToWorld(screenX, screenY int) (worldX float64, worldY f
 	}
 }
 
+// ApplyCameraTransformToPoint applies camera transformation to given point
+func (cam *Camera) ApplyCameraTransformToPoint(x, y float64) (float64, float64) {
+	geoM := ebiten.GeoM{}
+	cam.ApplyCameraTransform(&geoM)
+	return geoM.Apply(x, y)
+}
+
 // ApplyCameraTransform applies geometric transformation to given geoM
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
 	geoM.Translate(-cam.topLeft.X, -cam.topLeft.Y)                             // camera movement
