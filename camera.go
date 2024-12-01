@@ -1,3 +1,4 @@
+// Package kamera provides a camera object for Ebitengine v2.
 package kamera
 
 import (
@@ -315,7 +316,7 @@ type CameraShakeOptions struct {
 	Decay         float64 // Decay for trauma
 }
 
-// SmoothOptions kamera yumuşak hareket ayarlarını içerir
+// SmoothOptions is the camera movement smoothing options.
 type SmoothOptions struct {
 	// LerpSpeed is the linear interpolation speed every frame. Value is in the range [0-1].
 	//
