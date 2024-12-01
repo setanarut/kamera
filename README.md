@@ -11,16 +11,11 @@ import "github.com/setanarut/kamera/v2"
 ## Features
 
 - Camera shake effect with [fastnoise](https://github.com/setanarut/fastnoise) library noise types.
-- Lerp motion
+- Smooth camera movement with three interpolation modes:
+  - `None`: Direct camera movement without smoothing
+  - `Lerp`: Linear interpolation for smooth transitions
+  - `SmoothDamp`: Spring-like motion with acceleration and deceleration and maximum speed.
 - Rotate/Zoom
-
-## Example
-
-Run example on your local machine
-
-```console
-go run github.com/setanarut/kamera/v2/examples/demo@latest
-```
 
 ## Usage
 
@@ -35,5 +30,20 @@ func (g *Game) Draw(screen *ebiten.Image) {
   g.MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
  }
 ```
+## Examples
 
-See the [./examples/demo/main.go](./examples/demo/main.go) for a real working code example. 
+### Platformer
+
+Run platformer example on your local machine
+
+```console
+go run github.com/setanarut/kamera/v2/examples/platformer@latest
+```
+
+### Director
+
+Run director example on your local machine
+
+```console
+go run github.com/setanarut/kamera/v2/examples/director@latest
+```

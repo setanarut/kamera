@@ -8,13 +8,6 @@ import (
 	"github.com/setanarut/fastnoise"
 )
 
-var statText = `TargetX: %.2f
-TargetY: %.2f
-Cam Rotation: %.2f
-Zoom factor: %.2f
-LerpEnabled: %v
-ShakeEnabled: %v`
-
 // Camera object.
 //
 // Use the `Camera.LookAt()` to align the center of the camera to the target.
@@ -23,15 +16,11 @@ type Camera struct {
 	// ZoomFactor is the camera zoom (scaling) factor. Default is 1.
 	ZoomFactor float64
 
-	// If LerpEnabled is true, the camera moves with linear interpolation.
-	//
-	// The default value is false.
-	LerpEnabled bool
+	// Smoothing is the camera movement smoothing type.
+	Smoothing SmoothingType
 
-	// LerpSpeed ​​is the interpolation speed in the range [0-1].
-	//
-	// The default value is 0.1.
-	LerpSpeed float64
+	// SmoothingOptions holds the camera movement smoothing settings
+	SmoothingOptions *SmoothOptions
 
 	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
@@ -44,7 +33,7 @@ type Camera struct {
 	// private
 	drawOptions                                                        *ebiten.DrawImageOptions
 	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake float64
-	tempTarget, centerOffset, topLeft, traumaOffset                    vec2
+	tempTarget, centerOffset, topLeft, traumaOffset, currentVelocity   vec2
 	bb                                                                 BB
 }
 
@@ -52,10 +41,10 @@ type Camera struct {
 func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 	target := vec2{lookAtX, lookAtY}
 	c := &Camera{
-		ZoomFactor:   1.0,
-		LerpEnabled:  false,
-		LerpSpeed:    0.1,
-		ShakeOptions: DefaultCameraShakeOptions(),
+		ZoomFactor:       1.0,
+		Smoothing:        None,
+		SmoothingOptions: DefaultSmoothOptions(),
+		ShakeOptions:     DefaultCameraShakeOptions(),
 		// private
 		w:               w,
 		h:               h,
@@ -69,6 +58,7 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		tempTarget:      vec2{},
 		tickSpeed:       1.0 / 60.0,
 		tick:            0,
+		currentVelocity: vec2{},
 	}
 
 	c.LookAt(lookAtX, lookAtY)
@@ -97,10 +87,15 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 
 	target := vec2{targetX, targetY}
 
-	if cam.LerpEnabled {
-		cam.tempTarget = cam.tempTarget.Lerp(target, cam.LerpSpeed)
+	switch cam.Smoothing {
+	case SmoothDamp:
+		cam.tempTarget = smoothDamp(cam.tempTarget, target, &cam.currentVelocity,
+			cam.SmoothingOptions.SmoothDampTime, cam.SmoothingOptions.SmoothDampMaxSpeed)
 		cam.topLeft = cam.tempTarget
-	} else {
+	case Lerp:
+		cam.tempTarget = cam.tempTarget.Lerp(target, cam.SmoothingOptions.LerpSpeed)
+		cam.topLeft = cam.tempTarget
+	default: // None
 		cam.topLeft = target
 	}
 
@@ -235,16 +230,39 @@ func (cam *Camera) Reset() {
 	cam.angle, cam.ZoomFactor, cam.zoomFactorShake = 0.0, 1.0, 1.0
 }
 
+const cameraStats = `TargetX: %.2f
+TargetY: %.2f
+Cam Rotation: %.2f
+Zoom factor: %.2f
+ShakeEnabled: %v
+Smoothing Function: %s
+LerpSpeed: %.4f
+SmoothDampTime: %.4f
+SmoothDampMaxSpeed: %.2f`
+
 // String returns camera values as string
 func (cam *Camera) String() string {
+	var smoothTypeStr string
+	switch cam.Smoothing {
+	case None:
+		smoothTypeStr = "None"
+	case Lerp:
+		smoothTypeStr = "Lerp"
+	case SmoothDamp:
+		smoothTypeStr = "SmoothDamp"
+	}
+
 	return fmt.Sprintf(
-		statText,
+		cameraStats,
 		cam.topLeft.X-cam.centerOffset.X,
 		cam.topLeft.Y-cam.centerOffset.Y,
 		cam.actualAngle,
 		cam.zoomFactorShake,
-		cam.LerpEnabled,
 		cam.ShakeEnabled,
+		smoothTypeStr,
+		cam.SmoothingOptions.LerpSpeed,
+		cam.SmoothingOptions.SmoothDampTime,
+		cam.SmoothingOptions.SmoothDampMaxSpeed,
 	)
 }
 
@@ -295,4 +313,40 @@ type CameraShakeOptions struct {
 	MaxZoomFactor float64 // Zoom factor strength [1-0]. 0 means disabled
 	TimeScale     float64 // Noise time domain speed
 	Decay         float64 // Decay for trauma
+}
+
+// SmoothOptions kamera yumuşak hareket ayarlarını içerir
+type SmoothOptions struct {
+	// LerpSpeed is the linear interpolation speed every frame. Value is in the range [0-1].
+	//
+	// A smaller value will reach the target slower.
+	LerpSpeed float64
+
+	// SmoothDampTime is the approximate time it will take to reach the target.
+	//
+	// A smaller value will reach the target faster.
+	SmoothDampTime float64
+
+	// SmoothDampMaxSpeed is the maximum speed the camera can move while smooth damping
+	SmoothDampMaxSpeed float64
+}
+
+// SmoothingType is the camera movement smoothing type.
+type SmoothingType int
+
+const (
+	// None is instant movement to the target. No smoothing.
+	None SmoothingType = iota
+	// Lerp is Lerp() function.
+	Lerp
+	// SmoothDamp is SmoothDamp() function.
+	SmoothDamp
+)
+
+func DefaultSmoothOptions() *SmoothOptions {
+	return &SmoothOptions{
+		LerpSpeed:          0.09,
+		SmoothDampTime:     0.2,
+		SmoothDampMaxSpeed: 1000.0,
+	}
 }

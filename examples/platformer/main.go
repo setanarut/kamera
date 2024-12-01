@@ -13,6 +13,16 @@ import (
 	"github.com/setanarut/tilecollider"
 )
 
+var Controls = `
+WASD -------- Move player    
+Space ------- Jump
+Shift ------- Run
+Tab --------- Change camera smoothing type
+Left/Right -- Decrease/Increase camera smoothing speed
+              LerpSpeed: Smaller value will reach the target slower.
+              SmoothDampTime: Smaller value will reach the target faster.
+`
+
 var ScreenWidth, ScreenHeight = 512, 512
 
 const crossHairLength float32 = 200.0
@@ -36,6 +46,7 @@ var TileMap = [][]uint8{
 
 func init() {
 	Controller.SetPhyicsScale(2.2)
+	cam.Smoothing = kamera.SmoothDamp
 }
 
 func Translate(box *[4]float64, x, y float64) {
@@ -55,25 +66,39 @@ var (
 var Controller = NewPlayerController()
 var collider = tilecollider.NewCollider(TileMap, TileSize[0], TileSize[1])
 
-// Kameranın mevcut pozisyonunu takip etmek için global değişkenler ekleyelim
-var (
-	camCurrentX float64
-	camCurrentY float64
-	velocityX   float64
-	velocityY   float64
-)
-
-const (
-	smoothTime = 0.2
-	maxSpeed   = 1000.0
-)
-
-func SmoothDampCamera(box [4]float64) {
-	SmoothDamp(&camCurrentX, &velocityX, box[0]+box[2]/2, smoothTime)
-	SmoothDamp(&camCurrentY, &velocityY, box[1]+box[3]/2, smoothTime)
-}
-
 func (g *Game) Update() error {
+
+	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+		switch cam.Smoothing {
+		case kamera.Lerp:
+			cam.SmoothingOptions.LerpSpeed -= 0.0005
+			cam.SmoothingOptions.LerpSpeed = clamp(cam.SmoothingOptions.LerpSpeed, 0, 1)
+		case kamera.SmoothDamp:
+			cam.SmoothingOptions.SmoothDampTime += 0.0005
+			cam.SmoothingOptions.SmoothDampTime = clamp(cam.SmoothingOptions.SmoothDampTime, 0, 10)
+		}
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyRight) {
+		switch cam.Smoothing {
+		case kamera.Lerp:
+			cam.SmoothingOptions.LerpSpeed += 0.0005
+			cam.SmoothingOptions.LerpSpeed = clamp(cam.SmoothingOptions.LerpSpeed, 0, 1)
+		case kamera.SmoothDamp:
+			cam.SmoothingOptions.SmoothDampTime -= 0.0005
+			cam.SmoothingOptions.SmoothDampTime = clamp(cam.SmoothingOptions.SmoothDampTime, 0, 10)
+		}
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+		switch cam.Smoothing {
+		case kamera.None:
+			cam.Smoothing = kamera.Lerp
+		case kamera.Lerp:
+			cam.Smoothing = kamera.SmoothDamp
+		case kamera.SmoothDamp:
+			cam.Smoothing = kamera.None
+		}
+	}
 
 	if Vel[1] < 0 {
 		Controller.IsOnFloor = false
@@ -104,8 +129,7 @@ func (g *Game) Update() error {
 	)
 
 	Translate(&Box, dx, dy)
-	SmoothDampCamera(Box)
-	cam.LookAt(camCurrentX, camCurrentY)
+	cam.LookAt(Box[0]+Box[2]/2, Box[1]+Box[3]/2)
 
 	return nil
 }
@@ -126,7 +150,15 @@ func (g *Game) Draw(s *ebiten.Image) {
 				geom := &ebiten.GeoM{}
 				cam.ApplyCameraTransform(geom)
 				px, py = geom.Apply(px, py)
-				vector.DrawFilledRect(s, float32(px), float32(py), float32(TileSize[0]), float32(TileSize[1]), color.Gray{80}, false)
+				vector.DrawFilledRect(
+					s,
+					float32(px),
+					float32(py),
+					float32(TileSize[0]),
+					float32(TileSize[1]),
+					color.RGBA{R: 80, G: 80, B: 200, A: 255},
+					false,
+				)
 			}
 		}
 	}
@@ -140,7 +172,8 @@ func (g *Game) Draw(s *ebiten.Image) {
 	vector.StrokeLine(s, cx-crossHairLength, cy, cx+crossHairLength, cy, 1, color.Gray{200}, false)
 	vector.StrokeLine(s, cx, cy-crossHairLength, cx, cy+crossHairLength, 1, color.Gray{200}, false)
 
-	ebitenutil.DebugPrint(s, cam.String())
+	ebitenutil.DebugPrintAt(s, Controls, 14, 0)
+	ebitenutil.DebugPrintAt(s, cam.String(), 14, 300)
 }
 
 func Axis() (axisX, axisY float64) {
@@ -396,30 +429,13 @@ func (pc *PlayerController) ProcessVelocity(vel [2]float64) [2]float64 {
 	return vel
 }
 
-func SmoothDamp(current, velocity *float64, target, smoothTime float64) {
-	omega := 2.0 / smoothTime
-	x := omega * 0.016666667
-	exp := 1.0 / (1.0 + x + 0.48*x*x + 0.235*x*x*x)
-
-	change := *current - target
-	originalTo := target
-
-	maxChange := maxSpeed * smoothTime
-	if change > maxChange {
-		change = maxChange
-	} else if change < -maxChange {
-		change = -maxChange
+// clamp returns f clamped to [low, high]
+func clamp(f, low, high float64) float64 {
+	if f < low {
+		return low
 	}
-	targetTemp := *current - change
-
-	temp := (*velocity + omega*change) * 0.016666667
-	*velocity = (*velocity - omega*temp) * exp
-	output := targetTemp + (change+temp)*exp
-
-	if (originalTo-*current > 0.0) == (output > originalTo) {
-		output = originalTo
-		*velocity = (output - originalTo) * 60.0
+	if f > high {
+		return high
 	}
-
-	*current = output
+	return f
 }

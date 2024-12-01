@@ -24,13 +24,12 @@ Key           Action
 ------------  ------------------------
 WASD          Move camera                
 T             Add 1.0 Trauma             
+Tab           Change camera smoothing type
+Space         Look at random position    
 E/Q           Zoom in/out                
-Tab           Look at random position    
 ArrowUp/Down  Zoom 2x                    
 Backspace     Reset camera               
 R             Rotate                     
-L             Toggle Lerp                
-K             Toggle Shake               
 `
 	w, h                                = 1024., 768.
 	camSpeed, zoomSpeedFactor, rotSpeed = 7.0, 1.02, 0.02
@@ -43,15 +42,8 @@ K             Toggle Shake
 type Game struct{}
 
 func (g *Game) Update() error {
-	// Use LookAt() only once in update
 	cam.LookAt(targetX, targetY)
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-		cam.LerpEnabled = !cam.LerpEnabled
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-		cam.ShakeEnabled = !cam.ShakeEnabled
-	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
 		cam.AddTrauma(1.0)
 	}
@@ -63,8 +55,19 @@ func (g *Game) Update() error {
 		cam.ZoomFactor /= 2
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		targetX, targetY = rand.Float64()*w, rand.Float64()*h
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+		switch cam.Smoothing {
+		case kamera.None:
+			cam.Smoothing = kamera.Lerp
+		case kamera.Lerp:
+			cam.Smoothing = kamera.SmoothDamp
+		case kamera.SmoothDamp:
+			cam.Smoothing = kamera.None
+		}
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
@@ -103,16 +106,24 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			dio.GeoM.Reset()
+			dio.GeoM.Translate(float64(x*300), float64(y*300))
+			cam.Draw(spriteSheet, dio, screen)
+		}
+	}
+
 	// Draw camera
 	cam.Draw(spriteSheet, dio, screen)
 
 	// Draw camera crosshair
 	cx, cy := float32(w/2), float32(h/2)
-	vector.StrokeLine(screen, cx-10, cy, cx+10, cy, 1, color.White, true)
-	vector.StrokeLine(screen, cx, cy-10, cx, cy+10, 1, color.White, true)
+	vector.StrokeLine(screen, cx-100, cy, cx+100, cy, 1, color.White, true)
+	vector.StrokeLine(screen, cx, cy-100, cx, cy+100, 1, color.White, true)
 	// HUD
 	ebitenutil.DebugPrintAt(screen, Controls, 10, 10)
-	ebitenutil.DebugPrintAt(screen, cam.String(), 10, 200)
+	ebitenutil.DebugPrintAt(screen, cam.String(), 10, 250)
 }
 
 func (g *Game) Layout(width, height int) (int, int) {
@@ -120,10 +131,8 @@ func (g *Game) Layout(width, height int) (int, int) {
 }
 
 func main() {
-	cam.LerpEnabled = true
-	cam.ShakeEnabled = true
-
-	img, _, err := image.Decode(bytes.NewReader(images.Spritesheet_png))
+	cam.Smoothing = kamera.SmoothDamp
+	img, _, err := image.Decode(bytes.NewReader(images.Smoke_png))
 	if err != nil {
 		log.Fatal(err)
 	}

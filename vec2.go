@@ -2,7 +2,7 @@ package kamera
 
 import "math"
 
-// Vec2 for camera
+// vec2 for camera
 type vec2 struct {
 	X, Y float64
 }
@@ -57,4 +57,32 @@ func clamp(f, low, high float64) float64 {
 		return high
 	}
 	return f
+}
+
+// smoothDamp gradually changes a value towards a desired goal over time.
+func smoothDamp(current, target vec2, currentVelocity *vec2, smoothTime, maxSpeed float64) vec2 {
+	smoothTime = math.Max(0.0001, smoothTime)
+	omega := 2.0 / smoothTime
+	x := omega * 0.016666666666666666
+	exp := 1.0 / (1.0 + x + 0.48*x*x + 0.235*x*x*x)
+	change := current.Sub(target)
+	originalTo := target
+	maxChange := maxSpeed * smoothTime
+	maxChangeSq := maxChange * maxChange
+	sqDist := change.Dot(change)
+	if sqDist > maxChangeSq {
+		mag := math.Sqrt(sqDist)
+		change = change.Scale(maxChange / mag)
+	}
+	target = current.Sub(change)
+	temp := (currentVelocity.Add(vec2{change.X * omega, change.Y * omega})).Scale(0.016666666666666666)
+	*currentVelocity = currentVelocity.Sub(vec2{temp.X * omega, temp.Y * omega}).Scale(exp)
+	output := target.Add(change.Add(temp).Scale(exp))
+	origMinusCurrent := originalTo.Sub(current)
+	outMinusOrig := output.Sub(originalTo)
+	if origMinusCurrent.Dot(outMinusOrig) > 0 {
+		output = originalTo
+		*currentVelocity = output.Sub(originalTo).Scale(1.0 / 0.016666666666666666)
+	}
+	return output
 }
