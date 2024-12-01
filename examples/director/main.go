@@ -132,6 +132,7 @@ func (g *Game) Layout(width, height int) (int, int) {
 
 func main() {
 	cam.Smoothing = kamera.SmoothDamp
+	cam.ShakeEnabled = true
 	img, _, err := image.Decode(bytes.NewReader(images.Smoke_png))
 	if err != nil {
 		log.Fatal(err)
