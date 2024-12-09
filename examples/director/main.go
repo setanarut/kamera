@@ -8,6 +8,7 @@ import (
 	"image/color"
 	_ "image/jpeg"
 	"log"
+	"math"
 	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -42,6 +43,12 @@ R             Rotate
 type Game struct{}
 
 func (g *Game) Update() error {
+
+	aX, aY := Normalize(Axis())
+
+	targetX += aX * camSpeed
+	targetY += aY * camSpeed
+
 	cam.LookAt(targetX, targetY)
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
@@ -70,19 +77,6 @@ func (g *Game) Update() error {
 		}
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		targetX -= camSpeed / cam.ZoomFactor
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		targetX += camSpeed / cam.ZoomFactor
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		targetY -= camSpeed / cam.ZoomFactor
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		targetY += camSpeed / cam.ZoomFactor
-	}
-
 	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
 		cam.ZoomFactor /= zoomSpeedFactor
 	}
@@ -101,6 +95,7 @@ func (g *Game) Update() error {
 		targetX, targetY = w/2, h/2
 		cam.Reset()
 	}
+
 	return nil
 }
 
@@ -142,4 +137,28 @@ func main() {
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func Normalize(x, y float64) (float64, float64) {
+	magnitude := math.Sqrt(x*x + y*y)
+	if magnitude == 0 {
+		return 0, 0
+	}
+	return x / magnitude, y / magnitude
+}
+
+func Axis() (axisX, axisY float64) {
+	if ebiten.IsKeyPressed(ebiten.KeyW) {
+		axisY -= 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyS) {
+		axisY += 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
+		axisX -= 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyD) {
+		axisX += 1
+	}
+	return axisX, axisY
 }

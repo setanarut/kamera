@@ -59,7 +59,6 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		tempTarget:      vec2{},
 		tickSpeed:       1.0 / 60.0,
 		tick:            0,
-		currentVelocity: vec2{},
 	}
 
 	c.LookAt(lookAtX, lookAtY)
@@ -90,12 +89,23 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 
 	switch cam.Smoothing {
 	case SmoothDamp:
-		cam.tempTarget = smoothDamp(cam.tempTarget, target, &cam.currentVelocity,
-			cam.SmoothingOptions.SmoothDampTime, cam.SmoothingOptions.SmoothDampMaxSpeed)
+		cam.tempTarget = smoothDamp(
+			cam.tempTarget,
+			target,
+			&cam.currentVelocity,
+			cam.SmoothingOptions.SmoothDampTimeX,
+			cam.SmoothingOptions.SmoothDampTimeY,
+			cam.SmoothingOptions.SmoothDampMaxSpeedX,
+			cam.SmoothingOptions.SmoothDampMaxSpeedY,
+		)
+		// cam.tempTarget.Y = smoothDamp2(cam.tempTarget.Y, targetX, &cam.velY, cam.SmoothingOptions.SmoothDampTimeY, cam.SmoothingOptions.SmoothDampMaxSpeedY)
 		cam.topLeft = cam.tempTarget
 	case Lerp:
-		cam.tempTarget = cam.tempTarget.Lerp(target, cam.SmoothingOptions.LerpSpeed)
-		cam.topLeft = cam.tempTarget
+		// cam.tempTarget = cam.tempTarget.Lerp(target, cam.SmoothingOptions.LerpSpeed)
+		cam.tempTarget.X = lerp(cam.tempTarget.X, targetX, cam.SmoothingOptions.LerpSpeedX)
+		cam.tempTarget.Y = lerp(cam.tempTarget.Y, targetY, cam.SmoothingOptions.LerpSpeedY)
+		cam.topLeft.X = cam.tempTarget.X
+		cam.topLeft.Y = cam.tempTarget.Y
 	default: // None
 		cam.topLeft = target
 	}
@@ -134,11 +144,13 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 			cam.zoomFactorShake *= cam.ZoomFactor
 			cam.zoomFactorShake += cam.ZoomFactor
 
-			cam.trauma = clamp(
-				cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay),
-				0,
-				1,
-			)
+			cam.trauma = min(max(cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay), 0), 1)
+
+			// cam.trauma = clamp(
+			// 	cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay),
+			// 	0,
+			// 	1,
+			// )
 
 		} else {
 			cam.actualAngle = 0.0
@@ -168,7 +180,9 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 // AddTrauma adds trauma. Factor is in the range [0-1]
 func (cam *Camera) AddTrauma(factor float64) {
 	if cam.ShakeEnabled {
-		cam.trauma = clamp(cam.trauma+factor, 0, 1)
+
+		cam.trauma = min(max(cam.trauma+factor, 0), 1)
+		// cam.trauma = clamp(cam.trauma+factor, 0, 1)
 	}
 }
 
@@ -237,13 +251,16 @@ Cam Rotation: %.2f
 Zoom factor: %.2f
 ShakeEnabled: %v
 Smoothing Function: %s
-LerpSpeed: %.4f
-SmoothDampTime: %.4f
-SmoothDampMaxSpeed: %.2f`
+LerpSpeedX: %.4f
+LerpSpeedY: %.4f
+SmoothDampTimeX: %.4f
+SmoothDampTimeY: %.4f
+SmoothDampMaxSpeedX: %.2f
+SmoothDampMaxSpeedY: %.2f`
 
 // String returns camera values as string
 func (cam *Camera) String() string {
-	var smoothTypeStr string
+	smoothTypeStr := ""
 	switch cam.Smoothing {
 	case None:
 		smoothTypeStr = "None"
@@ -261,9 +278,12 @@ func (cam *Camera) String() string {
 		cam.zoomFactorShake,
 		cam.ShakeEnabled,
 		smoothTypeStr,
-		cam.SmoothingOptions.LerpSpeed,
-		cam.SmoothingOptions.SmoothDampTime,
-		cam.SmoothingOptions.SmoothDampMaxSpeed,
+		cam.SmoothingOptions.LerpSpeedX,
+		cam.SmoothingOptions.LerpSpeedY,
+		cam.SmoothingOptions.SmoothDampTimeX,
+		cam.SmoothingOptions.SmoothDampTimeY,
+		cam.SmoothingOptions.SmoothDampMaxSpeedX,
+		cam.SmoothingOptions.SmoothDampMaxSpeedY,
 	)
 }
 
@@ -321,15 +341,18 @@ type SmoothOptions struct {
 	// LerpSpeed is the linear interpolation speed every frame. Value is in the range [0-1].
 	//
 	// A smaller value will reach the target slower.
-	LerpSpeed float64
+	LerpSpeedX float64
+	LerpSpeedY float64
 
 	// SmoothDampTime is the approximate time it will take to reach the target.
 	//
 	// A smaller value will reach the target faster.
-	SmoothDampTime float64
+	SmoothDampTimeX float64
+	SmoothDampTimeY float64
 
 	// SmoothDampMaxSpeed is the maximum speed the camera can move while smooth damping
-	SmoothDampMaxSpeed float64
+	SmoothDampMaxSpeedX float64
+	SmoothDampMaxSpeedY float64
 }
 
 // SmoothingType is the camera movement smoothing type.
@@ -346,8 +369,74 @@ const (
 
 func DefaultSmoothOptions() *SmoothOptions {
 	return &SmoothOptions{
-		LerpSpeed:          0.09,
-		SmoothDampTime:     0.2,
-		SmoothDampMaxSpeed: 1000.0,
+		LerpSpeedX:          0.09,
+		LerpSpeedY:          0.09,
+		SmoothDampTimeX:     0.2,
+		SmoothDampTimeY:     0.2,
+		SmoothDampMaxSpeedX: 1000.0,
+		SmoothDampMaxSpeedY: 1000.0,
 	}
+}
+
+// smoothDamp gradually changes a value towards a desired goal over time,
+// with independent smoothing for X and Y axes.
+func smoothDamp(current, target vec2, currentVelocity *vec2, smoothTimeX, smoothTimeY, maxSpeedX, maxSpeedY float64) vec2 {
+	// Ensure smooth times are not too small to avoid division by zero
+	smoothTimeX = math.Max(0.0001, smoothTimeX)
+	smoothTimeY = math.Max(0.0001, smoothTimeY)
+
+	// Calculate exponential decay factors for X and Y
+	omegaX := 2.0 / smoothTimeX
+	omegaY := 2.0 / smoothTimeY
+
+	xX := omegaX * 0.016666666666666666
+	xY := omegaY * 0.016666666666666666
+
+	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
+	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
+
+	// Calculate change with independent max speeds
+	change := current.Sub(target)
+	originalTo := target
+
+	maxChangeX := maxSpeedX * smoothTimeX
+	maxChangeY := maxSpeedY * smoothTimeY
+
+	maxChangeXSq := maxChangeX * maxChangeX
+	maxChangeYSq := maxChangeY * maxChangeY
+
+	// Limit change independently for X and Y
+	if change.X*change.X > maxChangeXSq {
+		change.X = math.Copysign(maxChangeX, change.X)
+	}
+
+	if change.Y*change.Y > maxChangeYSq {
+		change.Y = math.Copysign(maxChangeY, change.Y)
+	}
+
+	target = current.Sub(change)
+
+	// Calculate velocity and output with independent exponential decay
+	tempX := (currentVelocity.X + change.X*omegaX) * 0.016666666666666666
+	tempY := (currentVelocity.Y + change.Y*omegaY) * 0.016666666666666666
+
+	currentVelocity.X = (currentVelocity.X - tempX*omegaX) * expX
+	currentVelocity.Y = (currentVelocity.Y - tempY*omegaY) * expY
+
+	outputX := target.X + (change.X+tempX)*expX
+	outputY := target.Y + (change.Y+tempY)*expY
+
+	output := vec2{outputX, outputY}
+
+	// Ensure we don't overshoot the target
+	origMinusCurrent := originalTo.Sub(current)
+	outMinusOrig := output.Sub(originalTo)
+
+	if origMinusCurrent.Dot(outMinusOrig) > 0 {
+		output = originalTo
+		currentVelocity.X = (output.X - originalTo.X) / 0.016666666666666666
+		currentVelocity.Y = (output.Y - originalTo.Y) / 0.016666666666666666
+	}
+
+	return output
 }
