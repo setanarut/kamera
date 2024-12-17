@@ -369,7 +369,7 @@ func (cam *Camera) DrawWithColorM(worldObject *ebiten.Image, cm colorm.ColorM, w
 	cam.drawOptionsCM = worldObjectOps
 	cam.ApplyCameraTransform(&cam.drawOptionsCM.GeoM)
 	colorm.DrawImage(screen, worldObject, cm, worldObjectOps)
-	cam.drawOptions.GeoM.Reset()
+	cam.drawOptionsCM.GeoM.Reset()
 }
 
 type ShakeOptions struct {

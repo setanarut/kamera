@@ -20,5 +20,6 @@ require golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 
 retract (
 	v2.6.0 // nil pointer dereference (jpg) in demo code.
+	v2.93.0 // GeoM.Reset() bug.
 	[v2.0.0, v2.2.0]
 )
