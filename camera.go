@@ -364,7 +364,7 @@ func (cam *Camera) Draw(worldObject *ebiten.Image, worldObjectOps *ebiten.DrawIm
 	cam.drawOptions.GeoM.Reset()
 }
 
-// Draw applies the Camera's geometric transformation then draws the object on the screen with drawing options.
+// DrawWithColorM applies the Camera's geometric transformation then draws the object on the screen with colorm package drawing options.
 func (cam *Camera) DrawWithColorM(worldObject *ebiten.Image, cm colorm.ColorM, worldObjectOps *colorm.DrawImageOptions, screen *ebiten.Image) {
 	cam.drawOptionsCM = worldObjectOps
 	cam.ApplyCameraTransform(&cam.drawOptionsCM.GeoM)
