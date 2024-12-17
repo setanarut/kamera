@@ -46,8 +46,8 @@ var TileMap = [][]uint8{
 
 func init() {
 	Controller.SetPhyicsScale(2.2)
-	cam.Smoothing = kamera.SmoothDamp
-	cam.SmoothingOptions.SmoothDampTimeY = 1
+	cam.SmoothType = kamera.SmoothDamp
+	cam.SmoothOptions.SmoothDampTimeY = 1
 }
 
 func Translate(box *[4]float64, x, y float64) {
@@ -70,58 +70,58 @@ var collider = tilecollider.NewCollider(TileMap, TileSize[0], TileSize[1])
 func (g *Game) Update() error {
 
 	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		switch cam.Smoothing {
+		switch cam.SmoothType {
 		case kamera.Lerp:
-			cam.SmoothingOptions.LerpSpeedY -= 0.01
-			cam.SmoothingOptions.LerpSpeedY = max(0, min(cam.SmoothingOptions.LerpSpeedY, 1))
+			cam.SmoothOptions.LerpSpeedY -= 0.01
+			cam.SmoothOptions.LerpSpeedY = max(0, min(cam.SmoothOptions.LerpSpeedY, 1))
 
 		case kamera.SmoothDamp:
-			cam.SmoothingOptions.SmoothDampTimeY += 0.01
-			cam.SmoothingOptions.SmoothDampTimeY = max(0, min(cam.SmoothingOptions.SmoothDampTimeY, 10))
+			cam.SmoothOptions.SmoothDampTimeY += 0.01
+			cam.SmoothOptions.SmoothDampTimeY = max(0, min(cam.SmoothOptions.SmoothDampTimeY, 10))
 
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyUp) {
-		switch cam.Smoothing {
+		switch cam.SmoothType {
 		case kamera.Lerp:
-			cam.SmoothingOptions.LerpSpeedY += 0.01
-			cam.SmoothingOptions.LerpSpeedY = max(0, min(cam.SmoothingOptions.LerpSpeedY, 1))
+			cam.SmoothOptions.LerpSpeedY += 0.01
+			cam.SmoothOptions.LerpSpeedY = max(0, min(cam.SmoothOptions.LerpSpeedY, 1))
 		case kamera.SmoothDamp:
-			cam.SmoothingOptions.SmoothDampTimeY -= 0.01
-			cam.SmoothingOptions.SmoothDampTimeY = max(0, min(cam.SmoothingOptions.SmoothDampTimeY, 10))
+			cam.SmoothOptions.SmoothDampTimeY -= 0.01
+			cam.SmoothOptions.SmoothDampTimeY = max(0, min(cam.SmoothOptions.SmoothDampTimeY, 10))
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		switch cam.Smoothing {
+		switch cam.SmoothType {
 		case kamera.Lerp:
-			cam.SmoothingOptions.LerpSpeedX -= 0.01
-			cam.SmoothingOptions.LerpSpeedX = max(0, min(cam.SmoothingOptions.LerpSpeedX, 1))
+			cam.SmoothOptions.LerpSpeedX -= 0.01
+			cam.SmoothOptions.LerpSpeedX = max(0, min(cam.SmoothOptions.LerpSpeedX, 1))
 
 		case kamera.SmoothDamp:
-			cam.SmoothingOptions.SmoothDampTimeX += 0.01
-			cam.SmoothingOptions.SmoothDampTimeX = max(0, min(cam.SmoothingOptions.SmoothDampTimeX, 10))
+			cam.SmoothOptions.SmoothDampTimeX += 0.01
+			cam.SmoothOptions.SmoothDampTimeX = max(0, min(cam.SmoothOptions.SmoothDampTimeX, 10))
 
 		}
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyRight) {
-		switch cam.Smoothing {
+		switch cam.SmoothType {
 		case kamera.Lerp:
-			cam.SmoothingOptions.LerpSpeedX += 0.01
-			cam.SmoothingOptions.LerpSpeedX = max(0, min(cam.SmoothingOptions.LerpSpeedX, 1))
+			cam.SmoothOptions.LerpSpeedX += 0.01
+			cam.SmoothOptions.LerpSpeedX = max(0, min(cam.SmoothOptions.LerpSpeedX, 1))
 		case kamera.SmoothDamp:
-			cam.SmoothingOptions.SmoothDampTimeX -= 0.01
-			cam.SmoothingOptions.SmoothDampTimeX = max(0, min(cam.SmoothingOptions.SmoothDampTimeX, 10))
+			cam.SmoothOptions.SmoothDampTimeX -= 0.01
+			cam.SmoothOptions.SmoothDampTimeX = max(0, min(cam.SmoothOptions.SmoothDampTimeX, 10))
 		}
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
-		switch cam.Smoothing {
+		switch cam.SmoothType {
 		case kamera.None:
-			cam.Smoothing = kamera.Lerp
+			cam.SmoothType = kamera.Lerp
 		case kamera.Lerp:
-			cam.Smoothing = kamera.SmoothDamp
+			cam.SmoothType = kamera.SmoothDamp
 		case kamera.SmoothDamp:
-			cam.Smoothing = kamera.None
+			cam.SmoothType = kamera.None
 		}
 	}
 

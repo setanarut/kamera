@@ -35,24 +35,3 @@ func TestSetSize(t *testing.T) {
 	}
 
 }
-func TestBB(t *testing.T) {
-	cam := kamera.NewCamera(0, 0, 10, 10)
-	cam.SetSize(7, 2)
-	bb := cam.BB()
-	if bb.L != -3.5 || bb.B != -1 || bb.R != 3.5 || bb.T != 1 {
-		t.Error()
-	}
-
-}
-func TestBBContainsPoint(t *testing.T) {
-	cam := kamera.NewCamera(0, 0, 10, 10)
-	if !cam.BB().ContainsPoint(-1, -5) {
-		t.Error()
-	}
-}
-func TestBBContains(t *testing.T) {
-	cam := kamera.NewCamera(0, 0, 10, 10)
-	if !cam.BB().Contains(kamera.NewBBForExtents(0, 0, 5, 5)) {
-		t.Error()
-	}
-}

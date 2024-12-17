@@ -6,7 +6,20 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/setanarut/fastnoise"
+)
+
+// SmoothType is the camera movement smoothing type.
+type SmoothType int
+
+const (
+	// None is instant movement to the target. No smoothing.
+	None SmoothType = iota
+	// Lerp is Lerp() function.
+	Lerp
+	// SmoothDamp is SmoothDamp() function.
+	SmoothDamp
 )
 
 // Camera object.
@@ -17,11 +30,11 @@ type Camera struct {
 	// ZoomFactor is the camera zoom (scaling) factor. Default is 1.
 	ZoomFactor float64
 
-	// Smoothing is the camera movement smoothing type.
-	Smoothing SmoothingType
+	// SmoothType is the camera movement smoothing type.
+	SmoothType SmoothType
 
-	// SmoothingOptions holds the camera movement smoothing settings
-	SmoothingOptions *SmoothOptions
+	// SmoothOptions holds the camera movement smoothing settings
+	SmoothOptions *SmoothOptions
 
 	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
@@ -29,23 +42,23 @@ type Camera struct {
 	ShakeEnabled bool
 
 	// ShakeOptions holds the camera shake options.
-	ShakeOptions *CameraShakeOptions
+	ShakeOptions *ShakeOptions
 
 	// private
-	drawOptions                                                        *ebiten.DrawImageOptions
-	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake float64
-	tempTarget, centerOffset, topLeft, traumaOffset, currentVelocity   vec2
-	bb                                                                 BB
+	drawOptions                                                           *ebiten.DrawImageOptions
+	drawOptionsCM                                                         *colorm.DrawImageOptions
+	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake    float64
+	tempTargetX, centerOffsetX, topLeftX, traumaOffsetX, currentVelocityX float64
+	tempTargetY, centerOffsetY, topLeftY, traumaOffsetY, currentVelocityY float64
 }
 
 // NewCamera returns new Camera
 func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
-	target := vec2{lookAtX, lookAtY}
 	c := &Camera{
-		ZoomFactor:       1.0,
-		Smoothing:        None,
-		SmoothingOptions: DefaultSmoothOptions(),
-		ShakeOptions:     DefaultCameraShakeOptions(),
+		ZoomFactor:    1.0,
+		SmoothType:    None,
+		SmoothOptions: DefaultSmoothOptions(),
+		ShakeOptions:  DefaultCameraShakeOptions(),
 		// private
 		w:               w,
 		h:               h,
@@ -53,22 +66,20 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		zoomFactorShake: 1.0,
 		trauma:          0,
 		drawOptions:     &ebiten.DrawImageOptions{},
-		centerOffset:    vec2{-(w * 0.5), -(h * 0.5)},
-		traumaOffset:    vec2{},
-		topLeft:         vec2{},
-		tempTarget:      vec2{},
+		centerOffsetX:   -(w * 0.5),
+		centerOffsetY:   -(h * 0.5),
 		tickSpeed:       1.0 / 60.0,
 		tick:            0,
 	}
 
 	c.LookAt(lookAtX, lookAtY)
-	c.tempTarget = target
-	c.bb = NewBBForExtents(lookAtX, lookAtY, w/2, h/2)
+	c.tempTargetX = lookAtX
+	c.tempTargetY = lookAtY
 	return c
 }
 
-func DefaultCameraShakeOptions() *CameraShakeOptions {
-	opt := &CameraShakeOptions{
+func DefaultCameraShakeOptions() *ShakeOptions {
+	opt := &ShakeOptions{
 		Noise:         fastnoise.New[float64](),
 		MaxX:          10.0,
 		MaxY:          10.0,
@@ -81,76 +92,109 @@ func DefaultCameraShakeOptions() *CameraShakeOptions {
 	return opt
 }
 
+// smoothDamp gradually changes a value towards a desired goal over time.
+func (cam *Camera) smoothDamp(targetX, targetY float64) (float64, float64) {
+	// Ensure smooth times are not too small to avoid division by zero
+	smoothTimeX := math.Max(0.0001, cam.SmoothOptions.SmoothDampTimeX)
+	smoothTimeY := math.Max(0.0001, cam.SmoothOptions.SmoothDampTimeY)
+
+	// Calculate exponential decay factors for X and Y
+	omegaX := 2.0 / smoothTimeX
+	omegaY := 2.0 / smoothTimeY
+
+	xX := omegaX * 0.016666666666666666
+	xY := omegaY * 0.016666666666666666
+
+	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
+	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
+
+	// Calculate change with independent max speeds
+	changeX := cam.tempTargetX - targetX
+	changeY := cam.tempTargetY - targetY
+
+	originalToX := targetX
+	originalToY := targetY
+
+	maxChangeX := cam.SmoothOptions.SmoothDampMaxSpeedX * smoothTimeX
+	maxChangeY := cam.SmoothOptions.SmoothDampMaxSpeedY * smoothTimeY
+
+	maxChangeXSq := maxChangeX * maxChangeX
+	maxChangeYSq := maxChangeY * maxChangeY
+
+	// Limit change independently for X and Y
+	if changeX*changeX > maxChangeXSq {
+		changeX = math.Copysign(maxChangeX, changeX)
+	}
+
+	if changeY*changeY > maxChangeYSq {
+		changeY = math.Copysign(maxChangeY, changeY)
+	}
+
+	targetX = cam.tempTargetX - changeX
+	targetY = cam.tempTargetY - changeY
+
+	// Calculate velocity and output with independent exponential decay
+	tempVelocityX := (cam.currentVelocityX + changeX*omegaX) * 0.016666666666666666
+	tempVelocityY := (cam.currentVelocityY + changeY*omegaY) * 0.016666666666666666
+
+	cam.currentVelocityX = (cam.currentVelocityX - tempVelocityX*omegaX) * expX
+	cam.currentVelocityY = (cam.currentVelocityY - tempVelocityY*omegaY) * expY
+
+	outputX := targetX + (changeX+tempVelocityX)*expX
+	outputY := targetY + (changeY+tempVelocityY)*expY
+
+	origMinusCurrentX := originalToX - cam.tempTargetX
+	origMinusCurrentY := originalToY - cam.tempTargetY
+
+	outMinusOrigX := outputX - originalToX
+	outMinusOrigY := outputY - originalToY
+
+	dot := origMinusCurrentX*outMinusOrigX + origMinusCurrentY*outMinusOrigY
+
+	if dot > 0 {
+		outputX = originalToX
+		outputY = originalToY
+		cam.currentVelocityX = (outputX - originalToX) / 0.016666666666666666
+		cam.currentVelocityY = (outputY - originalToY) / 0.016666666666666666
+	}
+
+	return outputX, outputY
+}
+
 // LookAt aligns the midpoint of the camera viewport to the target.
 // Use this function only once in Update() and change only the (targetX, targetY)
 func (cam *Camera) LookAt(targetX, targetY float64) {
-
-	target := vec2{targetX, targetY}
-
-	switch cam.Smoothing {
+	switch cam.SmoothType {
 	case SmoothDamp:
-		cam.tempTarget = smoothDamp(
-			cam.tempTarget,
-			target,
-			&cam.currentVelocity,
-			cam.SmoothingOptions.SmoothDampTimeX,
-			cam.SmoothingOptions.SmoothDampTimeY,
-			cam.SmoothingOptions.SmoothDampMaxSpeedX,
-			cam.SmoothingOptions.SmoothDampMaxSpeedY,
-		)
-		// cam.tempTarget.Y = smoothDamp2(cam.tempTarget.Y, targetX, &cam.velY, cam.SmoothingOptions.SmoothDampTimeY, cam.SmoothingOptions.SmoothDampMaxSpeedY)
-		cam.topLeft = cam.tempTarget
-	case Lerp:
-		// cam.tempTarget = cam.tempTarget.Lerp(target, cam.SmoothingOptions.LerpSpeed)
-		cam.tempTarget.X = lerp(cam.tempTarget.X, targetX, cam.SmoothingOptions.LerpSpeedX)
-		cam.tempTarget.Y = lerp(cam.tempTarget.Y, targetY, cam.SmoothingOptions.LerpSpeedY)
-		cam.topLeft.X = cam.tempTarget.X
-		cam.topLeft.Y = cam.tempTarget.Y
-	default: // None
-		cam.topLeft = target
-	}
+		cam.tempTargetX, cam.tempTargetY = cam.smoothDamp(targetX, targetY)
+		cam.topLeftX = cam.tempTargetX
+		cam.topLeftY = cam.tempTargetY
 
+	case Lerp:
+		cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
+		cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
+		cam.topLeftX, cam.topLeftY = cam.tempTargetX, cam.tempTargetY
+	default:
+		cam.topLeftX, cam.topLeftY = targetX, targetY
+	}
 	if cam.ShakeEnabled {
 		if cam.trauma > 0 {
-
 			var shake = math.Pow(cam.trauma, 2)
+			noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale, 0, 0)
+			noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(0, cam.tick*cam.ShakeOptions.TimeScale, 0)
+			noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(0, 0, cam.tick*cam.ShakeOptions.TimeScale)
 
-			noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(
-				cam.tick*cam.ShakeOptions.TimeScale,
-				0,
-				0,
-			)
-			noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(
-				0,
-				cam.tick*cam.ShakeOptions.TimeScale,
-				0,
-			)
-			noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(
-				0,
-				0,
-				cam.tick*cam.ShakeOptions.TimeScale,
-			)
-
-			cam.traumaOffset.X = noiseValueX * cam.ShakeOptions.MaxX * shake
-			cam.traumaOffset.Y = noiseValueY * cam.ShakeOptions.MaxY * shake
+			cam.traumaOffsetX = noiseValueX * cam.ShakeOptions.MaxX * shake
+			cam.traumaOffsetY = noiseValueY * cam.ShakeOptions.MaxY * shake
 			cam.actualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
 
-			noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(
-				cam.tick*cam.ShakeOptions.TimeScale+300,
-				0,
-				0,
-			)
+			noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale+300, 0, 0)
 			cam.zoomFactorShake = noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake
 			cam.zoomFactorShake *= cam.ZoomFactor
 			cam.zoomFactorShake += cam.ZoomFactor
 
+			// clamp
 			cam.trauma = min(max(cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay), 0), 1)
-
-			// cam.trauma = clamp(
-			// 	cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay),
-			// 	0,
-			// 	1,
-			// )
 
 		} else {
 			cam.actualAngle = 0.0
@@ -159,8 +203,8 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 
 		// offset
 		cam.actualAngle += cam.angle
-		cam.topLeft = cam.topLeft.Add(cam.traumaOffset)
-		cam.topLeft = cam.topLeft.Add(cam.centerOffset)
+		cam.topLeftX += cam.traumaOffsetX
+		cam.topLeftY += cam.traumaOffsetY
 
 		// tick
 		cam.tick += cam.tickSpeed
@@ -171,36 +215,30 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 	} else {
 		cam.zoomFactorShake = cam.ZoomFactor
 		cam.actualAngle = cam.angle
-		cam.topLeft = cam.topLeft.Add(cam.centerOffset)
+
+		cam.topLeftX += cam.centerOffsetX
+		cam.topLeftY += cam.centerOffsetY
+
 		cam.trauma = 0
-		cam.traumaOffset = vec2{}
+		cam.traumaOffsetX, cam.traumaOffsetY = 0, 0
 	}
 }
 
 // AddTrauma adds trauma. Factor is in the range [0-1]
 func (cam *Camera) AddTrauma(factor float64) {
 	if cam.ShakeEnabled {
-
-		cam.trauma = min(max(cam.trauma+factor, 0), 1)
-		// cam.trauma = clamp(cam.trauma+factor, 0, 1)
+		cam.trauma = min(max(cam.trauma+factor, 0), 1) // clamp
 	}
 }
 
 // TopLeft returns top left position of the camera in world-space
 func (cam *Camera) TopLeft() (X float64, Y float64) {
-	return cam.topLeft.X, cam.topLeft.Y
-}
-
-// BB returns camera's bounding box in world-space
-func (cam *Camera) BB() BB {
-	x, y := cam.Center()
-	return NewBBForExtents(x, y, cam.w*0.5, cam.h*0.5)
+	return cam.topLeftX, cam.topLeftY
 }
 
 // Center returns center point of the camera in world-space
 func (cam *Camera) Center() (X float64, Y float64) {
-	center := cam.topLeft.Sub(cam.centerOffset)
-	return center.X, center.Y
+	return cam.topLeftX - cam.centerOffsetX, cam.topLeftY - cam.centerOffsetY
 }
 
 // ActualAngle returns camera rotation angle (including the angle of trauma shaking.).
@@ -236,7 +274,8 @@ func (cam *Camera) Height() float64 {
 func (cam *Camera) SetSize(w, h float64) {
 	cx, cy := cam.Center()
 	cam.w, cam.h = w, h
-	cam.centerOffset = vec2{-(w * 0.5), -(h * 0.5)}
+	cam.centerOffsetX = -(w * 0.5)
+	cam.centerOffsetY = -(h * 0.5)
 	cam.LookAt(cx, cy)
 }
 
@@ -261,7 +300,7 @@ SmoothDampMaxSpeedY: %.2f`
 // String returns camera values as string
 func (cam *Camera) String() string {
 	smoothTypeStr := ""
-	switch cam.Smoothing {
+	switch cam.SmoothType {
 	case None:
 		smoothTypeStr = "None"
 	case Lerp:
@@ -272,18 +311,18 @@ func (cam *Camera) String() string {
 
 	return fmt.Sprintf(
 		cameraStats,
-		cam.topLeft.X-cam.centerOffset.X,
-		cam.topLeft.Y-cam.centerOffset.Y,
+		cam.topLeftX-cam.centerOffsetX,
+		cam.topLeftY-cam.centerOffsetY,
 		cam.actualAngle,
 		cam.zoomFactorShake,
 		cam.ShakeEnabled,
 		smoothTypeStr,
-		cam.SmoothingOptions.LerpSpeedX,
-		cam.SmoothingOptions.LerpSpeedY,
-		cam.SmoothingOptions.SmoothDampTimeX,
-		cam.SmoothingOptions.SmoothDampTimeY,
-		cam.SmoothingOptions.SmoothDampMaxSpeedX,
-		cam.SmoothingOptions.SmoothDampMaxSpeedY,
+		cam.SmoothOptions.LerpSpeedX,
+		cam.SmoothOptions.LerpSpeedY,
+		cam.SmoothOptions.SmoothDampTimeX,
+		cam.SmoothOptions.SmoothDampTimeY,
+		cam.SmoothOptions.SmoothDampMaxSpeedX,
+		cam.SmoothOptions.SmoothDampMaxSpeedY,
 	)
 }
 
@@ -310,11 +349,11 @@ func (cam *Camera) ApplyCameraTransformToPoint(x, y float64) (float64, float64) 
 
 // ApplyCameraTransform applies geometric transformation to given geoM
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
-	geoM.Translate(-cam.topLeft.X, -cam.topLeft.Y)                             // camera movement
-	geoM.Translate(cam.centerOffset.X, cam.centerOffset.Y)                     // rotate and scale from center.
-	geoM.Rotate(cam.actualAngle)                                               // rotate
-	geoM.Scale(cam.zoomFactorShake, cam.zoomFactorShake)                       // apply zoom factor
-	geoM.Translate(math.Abs(cam.centerOffset.X), math.Abs(cam.centerOffset.Y)) // restore center translation
+	geoM.Translate(-cam.topLeftX, -cam.topLeftY)                             // camera movement
+	geoM.Translate(cam.centerOffsetX, cam.centerOffsetY)                     // rotate and scale from center.
+	geoM.Rotate(cam.actualAngle)                                             // rotate
+	geoM.Scale(cam.zoomFactorShake, cam.zoomFactorShake)                     // apply zoom factor
+	geoM.Translate(math.Abs(cam.centerOffsetX), math.Abs(cam.centerOffsetY)) // restore center translation
 }
 
 // Draw applies the Camera's geometric transformation then draws the object on the screen with drawing options.
@@ -325,7 +364,15 @@ func (cam *Camera) Draw(worldObject *ebiten.Image, worldObjectOps *ebiten.DrawIm
 	cam.drawOptions.GeoM.Reset()
 }
 
-type CameraShakeOptions struct {
+// Draw applies the Camera's geometric transformation then draws the object on the screen with drawing options.
+func (cam *Camera) DrawWithColorM(worldObject *ebiten.Image, cm colorm.ColorM, worldObjectOps *colorm.DrawImageOptions, screen *ebiten.Image) {
+	cam.drawOptionsCM = worldObjectOps
+	cam.ApplyCameraTransform(&cam.drawOptionsCM.GeoM)
+	colorm.DrawImage(screen, worldObject, cm, worldObjectOps)
+	cam.drawOptions.GeoM.Reset()
+}
+
+type ShakeOptions struct {
 	// Noise generator for noise types and settings.
 	Noise         *fastnoise.State[float64]
 	MaxX          float64 // Maximum X-axis shake. 0 means disabled
@@ -338,34 +385,34 @@ type CameraShakeOptions struct {
 
 // SmoothOptions is the camera movement smoothing options.
 type SmoothOptions struct {
-	// LerpSpeed is the linear interpolation speed every frame. Value is in the range [0-1].
+	// LerpSpeedX is the  X-axis linear interpolation speed every frame.
+	// Value is in the range [0-1]. Default value is 0.09
 	//
 	// A smaller value will reach the target slower.
 	LerpSpeedX float64
+	// LerpSpeedY is the Y-axis linear interpolation speed every frame. Value is in the range [0-1].
+	//
+	// A smaller value will reach the target slower.
 	LerpSpeedY float64
 
-	// SmoothDampTime is the approximate time it will take to reach the target.
+	// SmoothDampTimeX is the X-Axis approximate time it will take to reach the target.
 	//
-	// A smaller value will reach the target faster.
+	// A smaller value will reach the target faster. Default value is 0.2
 	SmoothDampTimeX float64
+	// SmoothDampTimeY is the Y-Axis approximate time it will take to reach the target.
+	//
+	// A smaller value will reach the target faster. Default value is 0.2
 	SmoothDampTimeY float64
 
-	// SmoothDampMaxSpeed is the maximum speed the camera can move while smooth damping
+	// SmoothDampMaxSpeedX is the maximum speed the camera can move while smooth damping in X-Axis
+	//
+	// Default value is 1000
 	SmoothDampMaxSpeedX float64
+	// SmoothDampMaxSpeedY is the maximum speed the camera can move while smooth damping in Y-Axis
+	//
+	// Default value is 1000
 	SmoothDampMaxSpeedY float64
 }
-
-// SmoothingType is the camera movement smoothing type.
-type SmoothingType int
-
-const (
-	// None is instant movement to the target. No smoothing.
-	None SmoothingType = iota
-	// Lerp is Lerp() function.
-	Lerp
-	// SmoothDamp is SmoothDamp() function.
-	SmoothDamp
-)
 
 func DefaultSmoothOptions() *SmoothOptions {
 	return &SmoothOptions{
@@ -378,65 +425,6 @@ func DefaultSmoothOptions() *SmoothOptions {
 	}
 }
 
-// smoothDamp gradually changes a value towards a desired goal over time,
-// with independent smoothing for X and Y axes.
-func smoothDamp(current, target vec2, currentVelocity *vec2, smoothTimeX, smoothTimeY, maxSpeedX, maxSpeedY float64) vec2 {
-	// Ensure smooth times are not too small to avoid division by zero
-	smoothTimeX = math.Max(0.0001, smoothTimeX)
-	smoothTimeY = math.Max(0.0001, smoothTimeY)
-
-	// Calculate exponential decay factors for X and Y
-	omegaX := 2.0 / smoothTimeX
-	omegaY := 2.0 / smoothTimeY
-
-	xX := omegaX * 0.016666666666666666
-	xY := omegaY * 0.016666666666666666
-
-	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
-	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
-
-	// Calculate change with independent max speeds
-	change := current.Sub(target)
-	originalTo := target
-
-	maxChangeX := maxSpeedX * smoothTimeX
-	maxChangeY := maxSpeedY * smoothTimeY
-
-	maxChangeXSq := maxChangeX * maxChangeX
-	maxChangeYSq := maxChangeY * maxChangeY
-
-	// Limit change independently for X and Y
-	if change.X*change.X > maxChangeXSq {
-		change.X = math.Copysign(maxChangeX, change.X)
-	}
-
-	if change.Y*change.Y > maxChangeYSq {
-		change.Y = math.Copysign(maxChangeY, change.Y)
-	}
-
-	target = current.Sub(change)
-
-	// Calculate velocity and output with independent exponential decay
-	tempX := (currentVelocity.X + change.X*omegaX) * 0.016666666666666666
-	tempY := (currentVelocity.Y + change.Y*omegaY) * 0.016666666666666666
-
-	currentVelocity.X = (currentVelocity.X - tempX*omegaX) * expX
-	currentVelocity.Y = (currentVelocity.Y - tempY*omegaY) * expY
-
-	outputX := target.X + (change.X+tempX)*expX
-	outputY := target.Y + (change.Y+tempY)*expY
-
-	output := vec2{outputX, outputY}
-
-	// Ensure we don't overshoot the target
-	origMinusCurrent := originalTo.Sub(current)
-	outMinusOrig := output.Sub(originalTo)
-
-	if origMinusCurrent.Dot(outMinusOrig) > 0 {
-		output = originalTo
-		currentVelocity.X = (output.X - originalTo.X) / 0.016666666666666666
-		currentVelocity.Y = (output.Y - originalTo.Y) / 0.016666666666666666
-	}
-
-	return output
+func lerp(start, end, t float64) float64 {
+	return start + t*(end-start)
 }

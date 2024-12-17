@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/images"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -36,7 +37,7 @@ R             Rotate
 	camSpeed, zoomSpeedFactor, rotSpeed = 7.0, 1.02, 0.02
 	targetX, targetY                    = w / 2, h / 2
 	cam                                 = kamera.NewCamera(targetX, targetY, w, h)
-	dio                                 = &ebiten.DrawImageOptions{}
+	colormDIO                           = &colorm.DrawImageOptions{}
 	spriteSheet                         *ebiten.Image
 )
 
@@ -101,13 +102,19 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
+	var cm colorm.ColorM
+
+	cm.ChangeHSV(2, 1, 0.5)
+
+	// Draw backgorund tiles
 	for y := 0; y < 4; y++ {
 		for x := 0; x < 4; x++ {
-			dio.GeoM.Reset()
-			dio.GeoM.Translate(float64(x*300), float64(y*300))
-			cam.Draw(spriteSheet, dio, screen)
+			colormDIO.GeoM.Reset()
+			colormDIO.GeoM.Translate(float64(x*300), float64(y*300))
+			cam.DrawWithColorM(spriteSheet, cm, colormDIO, screen)
 		}
 	}
+
 	// Draw camera crosshair
 	cx, cy := float32(w/2), float32(h/2)
 	vector.StrokeLine(screen, cx-100, cy, cx+100, cy, 1, color.White, true)
