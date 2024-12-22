@@ -28,6 +28,7 @@ var ScreenWidth, ScreenHeight = 512, 512
 const crossHairLength float32 = 200.0
 
 func main() {
+
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
@@ -48,6 +49,8 @@ func init() {
 	Controller.SetPhyicsScale(2.2)
 	cam.SmoothType = kamera.SmoothDamp
 	cam.SmoothOptions.SmoothDampTimeY = 1
+	// cam.YAxisSmoothingDisabled = true
+	// cam.XAxisSmoothingDisabled = true
 }
 
 func Translate(box *[4]float64, x, y float64) {

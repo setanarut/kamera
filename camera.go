@@ -39,8 +39,9 @@ type Camera struct {
 	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
 	// The default value is false
-	ShakeEnabled bool
-
+	ShakeEnabled           bool
+	XAxisSmoothingDisabled bool
+	YAxisSmoothingDisabled bool
 	// ShakeOptions holds the camera shake options.
 	ShakeOptions *ShakeOptions
 
@@ -92,73 +93,84 @@ func DefaultCameraShakeOptions() *ShakeOptions {
 	return opt
 }
 
-// smoothDamp gradually changes a value towards a desired goal over time.
-func (cam *Camera) smoothDamp(targetX, targetY float64) (float64, float64) {
-	// Ensure smooth times are not too small to avoid division by zero
+// smoothDampX gradually changes a value towards a desired goal over time for X axis.
+func (cam *Camera) smoothDampX(targetX float64) float64 {
+	// Ensure smooth time is not too small to avoid division by zero
 	smoothTimeX := math.Max(0.0001, cam.SmoothOptions.SmoothDampTimeX)
-	smoothTimeY := math.Max(0.0001, cam.SmoothOptions.SmoothDampTimeY)
 
-	// Calculate exponential decay factors for X and Y
+	// Calculate exponential decay factor for X
 	omegaX := 2.0 / smoothTimeX
-	omegaY := 2.0 / smoothTimeY
-
 	xX := omegaX * 0.016666666666666666
-	xY := omegaY * 0.016666666666666666
-
 	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
-	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
 
-	// Calculate change with independent max speeds
+	// Calculate change with max speed
 	changeX := cam.tempTargetX - targetX
-	changeY := cam.tempTargetY - targetY
-
 	originalToX := targetX
-	originalToY := targetY
-
 	maxChangeX := cam.SmoothOptions.SmoothDampMaxSpeedX * smoothTimeX
-	maxChangeY := cam.SmoothOptions.SmoothDampMaxSpeedY * smoothTimeY
-
 	maxChangeXSq := maxChangeX * maxChangeX
-	maxChangeYSq := maxChangeY * maxChangeY
 
-	// Limit change independently for X and Y
+	// Limit change
 	if changeX*changeX > maxChangeXSq {
 		changeX = math.Copysign(maxChangeX, changeX)
 	}
 
+	targetX = cam.tempTargetX - changeX
+
+	// Calculate velocity and output with exponential decay
+	tempVelocityX := (cam.currentVelocityX + changeX*omegaX) * 0.016666666666666666
+	cam.currentVelocityX = (cam.currentVelocityX - tempVelocityX*omegaX) * expX
+	outputX := targetX + (changeX+tempVelocityX)*expX
+
+	// Check if we've overshot the target
+	origMinusCurrentX := originalToX - cam.tempTargetX
+	outMinusOrigX := outputX - originalToX
+
+	if origMinusCurrentX*outMinusOrigX > 0 {
+		outputX = originalToX
+		cam.currentVelocityX = (outputX - originalToX) / 0.016666666666666666
+	}
+
+	return outputX
+}
+
+// smoothDampY gradually changes a value towards a desired goal over time for Y axis.
+func (cam *Camera) smoothDampY(targetY float64) float64 {
+	// Ensure smooth time is not too small to avoid division by zero
+	smoothTimeY := math.Max(0.0001, cam.SmoothOptions.SmoothDampTimeY)
+
+	// Calculate exponential decay factor for Y
+	omegaY := 2.0 / smoothTimeY
+	xY := omegaY * 0.016666666666666666
+	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
+
+	// Calculate change with max speed
+	changeY := cam.tempTargetY - targetY
+	originalToY := targetY
+	maxChangeY := cam.SmoothOptions.SmoothDampMaxSpeedY * smoothTimeY
+	maxChangeYSq := maxChangeY * maxChangeY
+
+	// Limit change
 	if changeY*changeY > maxChangeYSq {
 		changeY = math.Copysign(maxChangeY, changeY)
 	}
 
-	targetX = cam.tempTargetX - changeX
 	targetY = cam.tempTargetY - changeY
 
-	// Calculate velocity and output with independent exponential decay
-	tempVelocityX := (cam.currentVelocityX + changeX*omegaX) * 0.016666666666666666
+	// Calculate velocity and output with exponential decay
 	tempVelocityY := (cam.currentVelocityY + changeY*omegaY) * 0.016666666666666666
-
-	cam.currentVelocityX = (cam.currentVelocityX - tempVelocityX*omegaX) * expX
 	cam.currentVelocityY = (cam.currentVelocityY - tempVelocityY*omegaY) * expY
-
-	outputX := targetX + (changeX+tempVelocityX)*expX
 	outputY := targetY + (changeY+tempVelocityY)*expY
 
-	origMinusCurrentX := originalToX - cam.tempTargetX
+	// Check if we've overshot the target
 	origMinusCurrentY := originalToY - cam.tempTargetY
-
-	outMinusOrigX := outputX - originalToX
 	outMinusOrigY := outputY - originalToY
 
-	dot := origMinusCurrentX*outMinusOrigX + origMinusCurrentY*outMinusOrigY
-
-	if dot > 0 {
-		outputX = originalToX
+	if origMinusCurrentY*outMinusOrigY > 0 {
 		outputY = originalToY
-		cam.currentVelocityX = (outputX - originalToX) / 0.016666666666666666
 		cam.currentVelocityY = (outputY - originalToY) / 0.016666666666666666
 	}
 
-	return outputX, outputY
+	return outputY
 }
 
 // LookAt aligns the midpoint of the camera viewport to the target.
@@ -166,16 +178,44 @@ func (cam *Camera) smoothDamp(targetX, targetY float64) (float64, float64) {
 func (cam *Camera) LookAt(targetX, targetY float64) {
 	switch cam.SmoothType {
 	case SmoothDamp:
-		cam.tempTargetX, cam.tempTargetY = cam.smoothDamp(targetX, targetY)
-		cam.topLeftX = cam.tempTargetX
-		cam.topLeftY = cam.tempTargetY
-
+		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
+			cam.tempTargetX = cam.smoothDampX(targetX)
+			cam.tempTargetY = cam.smoothDampY(targetY)
+			cam.topLeftX = cam.tempTargetX
+			cam.topLeftY = cam.tempTargetY
+		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
+			cam.tempTargetX = cam.smoothDampX(targetX)
+			cam.topLeftX = cam.tempTargetX
+			cam.topLeftY = targetY
+		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
+			cam.tempTargetY = cam.smoothDampY(targetY)
+			cam.topLeftY = cam.tempTargetY
+			cam.topLeftX = targetX
+		} else {
+			cam.topLeftX = targetX
+			cam.topLeftY = targetY
+		}
 	case Lerp:
-		cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
-		cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
-		cam.topLeftX, cam.topLeftY = cam.tempTargetX, cam.tempTargetY
+		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
+			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
+			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
+			cam.topLeftX = cam.tempTargetX
+			cam.topLeftY = cam.tempTargetY
+		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
+			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
+			cam.topLeftX = cam.tempTargetX
+			cam.topLeftY = targetY
+		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
+			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
+			cam.topLeftY = cam.tempTargetY
+			cam.topLeftX = targetX
+		} else {
+			cam.topLeftX = targetX
+			cam.topLeftY = targetY
+		}
 	default:
-		cam.topLeftX, cam.topLeftY = targetX, targetY
+		cam.topLeftX = targetX
+		cam.topLeftY = targetY
 	}
 	if cam.ShakeEnabled {
 		if cam.trauma > 0 {
