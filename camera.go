@@ -26,7 +26,10 @@ const (
 //
 // Use the `Camera.LookAt()` to align the center of the camera to the target.
 type Camera struct {
-
+	// Top-left X position of camera
+	TopLeftX float64
+	// Top-left Y position of camera
+	TopLeftY float64
 	// ZoomFactor is the camera zoom (scaling) factor. Default is 1.
 	ZoomFactor float64
 
@@ -46,11 +49,11 @@ type Camera struct {
 	ShakeOptions *ShakeOptions
 
 	// private
-	drawOptions                                                           *ebiten.DrawImageOptions
-	drawOptionsCM                                                         *colorm.DrawImageOptions
-	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake    float64
-	tempTargetX, centerOffsetX, topLeftX, traumaOffsetX, currentVelocityX float64
-	tempTargetY, centerOffsetY, topLeftY, traumaOffsetY, currentVelocityY float64
+	drawOptions                                                        *ebiten.DrawImageOptions
+	drawOptionsCM                                                      *colorm.DrawImageOptions
+	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake float64
+	tempTargetX, centerOffsetX, traumaOffsetX, currentVelocityX        float64
+	tempTargetY, centerOffsetY, traumaOffsetY, currentVelocityY        float64
 }
 
 // NewCamera returns new Camera
@@ -174,6 +177,8 @@ func (cam *Camera) smoothDampY(targetY float64) float64 {
 }
 
 // LookAt aligns the midpoint of the camera viewport to the target.
+//
+// Camera motion smoothing is only applied with this method.
 // Use this function only once in Update() and change only the (targetX, targetY)
 func (cam *Camera) LookAt(targetX, targetY float64) {
 	switch cam.SmoothType {
@@ -181,41 +186,41 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
 			cam.tempTargetX = cam.smoothDampX(targetX)
 			cam.tempTargetY = cam.smoothDampY(targetY)
-			cam.topLeftX = cam.tempTargetX
-			cam.topLeftY = cam.tempTargetY
+			cam.TopLeftX = cam.tempTargetX
+			cam.TopLeftY = cam.tempTargetY
 		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
 			cam.tempTargetX = cam.smoothDampX(targetX)
-			cam.topLeftX = cam.tempTargetX
-			cam.topLeftY = targetY
+			cam.TopLeftX = cam.tempTargetX
+			cam.TopLeftY = targetY
 		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
 			cam.tempTargetY = cam.smoothDampY(targetY)
-			cam.topLeftY = cam.tempTargetY
-			cam.topLeftX = targetX
+			cam.TopLeftY = cam.tempTargetY
+			cam.TopLeftX = targetX
 		} else {
-			cam.topLeftX = targetX
-			cam.topLeftY = targetY
+			cam.TopLeftX = targetX
+			cam.TopLeftY = targetY
 		}
 	case Lerp:
 		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
 			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
 			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
-			cam.topLeftX = cam.tempTargetX
-			cam.topLeftY = cam.tempTargetY
+			cam.TopLeftX = cam.tempTargetX
+			cam.TopLeftY = cam.tempTargetY
 		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
 			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
-			cam.topLeftX = cam.tempTargetX
-			cam.topLeftY = targetY
+			cam.TopLeftX = cam.tempTargetX
+			cam.TopLeftY = targetY
 		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
 			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
-			cam.topLeftY = cam.tempTargetY
-			cam.topLeftX = targetX
+			cam.TopLeftY = cam.tempTargetY
+			cam.TopLeftX = targetX
 		} else {
-			cam.topLeftX = targetX
-			cam.topLeftY = targetY
+			cam.TopLeftX = targetX
+			cam.TopLeftY = targetY
 		}
 	default:
-		cam.topLeftX = targetX
-		cam.topLeftY = targetY
+		cam.TopLeftX = targetX
+		cam.TopLeftY = targetY
 	}
 	if cam.ShakeEnabled {
 		if cam.trauma > 0 {
@@ -243,8 +248,8 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 
 		// offset
 		cam.actualAngle += cam.angle
-		cam.topLeftX += cam.traumaOffsetX
-		cam.topLeftY += cam.traumaOffsetY
+		cam.TopLeftX += cam.traumaOffsetX
+		cam.TopLeftY += cam.traumaOffsetY
 
 		// tick
 		cam.tick += cam.tickSpeed
@@ -256,8 +261,8 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		cam.zoomFactorShake = cam.ZoomFactor
 		cam.actualAngle = cam.angle
 
-		cam.topLeftX += cam.centerOffsetX
-		cam.topLeftY += cam.centerOffsetY
+		cam.TopLeftX += cam.centerOffsetX
+		cam.TopLeftY += cam.centerOffsetY
 
 		cam.trauma = 0
 		cam.traumaOffsetX, cam.traumaOffsetY = 0, 0
@@ -271,14 +276,33 @@ func (cam *Camera) AddTrauma(factor float64) {
 	}
 }
 
-// TopLeft returns top left position of the camera in world-space
+// TopLeft returns top-left position of the camera in world-space
 func (cam *Camera) TopLeft() (X float64, Y float64) {
-	return cam.topLeftX, cam.topLeftY
+	return cam.TopLeftX, cam.TopLeftY
+}
+
+// Right returns the right edge position of the camera in world-space.
+func (cam *Camera) Right() float64 {
+	return cam.TopLeftX + cam.w
+}
+
+// Bottom returns the bottom edge position of the camera in world-space.
+func (cam *Camera) Bottom() float64 {
+	return cam.TopLeftY + cam.h
+}
+
+// SetTopLeft sets top-left position of the camera in world-space.
+//
+// Unlike the LookAt() method, the position is set directly without any smoothing.
+//
+// Useful for static cameras.
+func (cam *Camera) SetTopLeft(x, y float64) {
+	cam.TopLeftX, cam.TopLeftY = x, y
 }
 
 // Center returns center point of the camera in world-space
 func (cam *Camera) Center() (X float64, Y float64) {
-	return cam.topLeftX - cam.centerOffsetX, cam.topLeftY - cam.centerOffsetY
+	return cam.TopLeftX - cam.centerOffsetX, cam.TopLeftY - cam.centerOffsetY
 }
 
 // ActualAngle returns camera rotation angle (including the angle of trauma shaking.).
@@ -310,7 +334,7 @@ func (cam *Camera) Height() float64 {
 	return cam.h
 }
 
-// SetSize sets camera rectangle size
+// SetSize sets camera rectangle size from center.
 func (cam *Camera) SetSize(w, h float64) {
 	cx, cy := cam.Center()
 	cam.w, cam.h = w, h
@@ -351,8 +375,8 @@ func (cam *Camera) String() string {
 
 	return fmt.Sprintf(
 		cameraStats,
-		cam.topLeftX-cam.centerOffsetX,
-		cam.topLeftY-cam.centerOffsetY,
+		cam.TopLeftX-cam.centerOffsetX,
+		cam.TopLeftY-cam.centerOffsetY,
 		cam.actualAngle,
 		cam.zoomFactorShake,
 		cam.ShakeEnabled,
@@ -389,7 +413,7 @@ func (cam *Camera) ApplyCameraTransformToPoint(x, y float64) (float64, float64) 
 
 // ApplyCameraTransform applies geometric transformation to given geoM
 func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
-	geoM.Translate(-cam.topLeftX, -cam.topLeftY)                             // camera movement
+	geoM.Translate(-cam.TopLeftX, -cam.TopLeftY)                             // camera movement
 	geoM.Translate(cam.centerOffsetX, cam.centerOffsetY)                     // rotate and scale from center.
 	geoM.Rotate(cam.actualAngle)                                             // rotate
 	geoM.Scale(cam.zoomFactorShake, cam.zoomFactorShake)                     // apply zoom factor
