@@ -293,11 +293,21 @@ func (cam *Camera) Bottom() float64 {
 
 // SetTopLeft sets top-left position of the camera in world-space.
 //
-// Unlike the LookAt() method, the position is set directly without any smoothing.
-//
-// Useful for static cameras.
+// Unlike the LookAt() method, the position is set directly (teleport).
 func (cam *Camera) SetTopLeft(x, y float64) {
 	cam.TopLeftX, cam.TopLeftY = x, y
+	cam.tempTargetX, cam.tempTargetY = cam.Center()
+
+}
+
+// SetCenter sets center position of the camera in world-space.
+//
+// Unlike the LookAt() method, the position is set directly (teleport).
+//
+// Can be used to cancel follow camera and teleport to target.
+func (cam *Camera) SetCenter(x, y float64) {
+	cam.LookAt(x, y)
+	cam.tempTargetX, cam.tempTargetY = x, y
 }
 
 // Center returns center point of the camera in world-space

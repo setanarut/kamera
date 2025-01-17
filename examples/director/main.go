@@ -69,10 +69,13 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
 		switch cam.SmoothType {
 		case kamera.None:
+			cam.SetCenter(targetX, targetY)
 			cam.SmoothType = kamera.Lerp
 		case kamera.Lerp:
+			cam.SetCenter(targetX, targetY)
 			cam.SmoothType = kamera.SmoothDamp
 		case kamera.SmoothDamp:
+			cam.SetCenter(targetX, targetY)
 			cam.SmoothType = kamera.None
 		}
 	}
