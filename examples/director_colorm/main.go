@@ -89,10 +89,10 @@ func (g *Game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		cam.SetAngle(cam.Angle() + rotSpeed)
+		cam.Angle += rotSpeed
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyF) {
-		cam.SetAngle(cam.Angle() - rotSpeed)
+		cam.Angle -= rotSpeed
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {

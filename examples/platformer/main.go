@@ -23,7 +23,7 @@ Arrow Keys -- Decrease/Increase camera smoothing speed
               SmoothDampTime: Smaller value will reach the target faster.
 `
 
-var ScreenWidth, ScreenHeight = 512, 512
+var ScreenWidth, ScreenHeight = 720, 480
 
 const crossHairLength float32 = 200.0
 
@@ -49,8 +49,6 @@ func init() {
 	Controller.SetPhyicsScale(2.2)
 	cam.SmoothType = kamera.SmoothDamp
 	cam.SmoothOptions.SmoothDampTimeY = 1
-	// cam.YAxisSmoothingDisabled = true
-	// cam.XAxisSmoothingDisabled = true
 }
 
 func Translate(box *[4]float64, x, y float64) {

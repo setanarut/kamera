@@ -27,33 +27,38 @@ const (
 // Use the `Camera.LookAt()` to align the center of the camera to the target.
 type Camera struct {
 	// Top-left X position of camera
-	TopLeftX float64
+	X float64
 	// Top-left Y position of camera
-	TopLeftY float64
+	Y float64
+	// Width is camera's width
+	Width float64
+	// Height is camera's height
+	Height float64
+	// Amgle is camera angle (without the angle of trauma shaking).
+	//
+	// The unit is radian.
+	Angle float64
+	// ActualAngle is camera angle (including the angle of trauma shaking).
+	//
+	// The unit is radian.
+	ActualAngle float64
 	// ZoomFactor is the camera zoom (scaling) factor. Default is 1.
 	ZoomFactor float64
-
 	// SmoothType is the camera movement smoothing type.
 	SmoothType SmoothType
-
 	// SmoothOptions holds the camera movement smoothing settings
 	SmoothOptions *SmoothOptions
-
+	// ShakeOptions holds the camera shake options.
+	ShakeOptions *ShakeOptions
 	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
 	// The default value is false
-	ShakeEnabled           bool
-	XAxisSmoothingDisabled bool
-	YAxisSmoothingDisabled bool
-	// ShakeOptions holds the camera shake options.
-	ShakeOptions *ShakeOptions
-
-	// private
-	drawOptions                                                        *ebiten.DrawImageOptions
-	drawOptionsCM                                                      *colorm.DrawImageOptions
-	angle, actualAngle, tickSpeed, tick, trauma, w, h, zoomFactorShake float64
-	tempTargetX, centerOffsetX, traumaOffsetX, currentVelocityX        float64
-	tempTargetY, centerOffsetY, traumaOffsetY, currentVelocityY        float64
+	ShakeEnabled                                                bool
+	XAxisSmoothingDisabled                                      bool
+	YAxisSmoothingDisabled                                      bool
+	TickSpeed, Tick, Trauma, ZoomFactorShake                    float64
+	TempTargetX, CenterOffsetX, TraumaOffsetX, CurrentVelocityX float64
+	TempTargetY, CenterOffsetY, TraumaOffsetY, CurrentVelocityY float64
 }
 
 // NewCamera returns new Camera
@@ -64,21 +69,21 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		SmoothOptions: DefaultSmoothOptions(),
 		ShakeOptions:  DefaultCameraShakeOptions(),
 		// private
-		w:               w,
-		h:               h,
-		angle:           0,
-		zoomFactorShake: 1.0,
-		trauma:          0,
-		drawOptions:     &ebiten.DrawImageOptions{},
-		centerOffsetX:   -(w * 0.5),
-		centerOffsetY:   -(h * 0.5),
-		tickSpeed:       1.0 / 60.0,
-		tick:            0,
+		Width:           w,
+		Height:          h,
+		Angle:           0,
+		ZoomFactorShake: 1.0,
+		Trauma:          0,
+		// DrawOptions:     &ebiten.DrawImageOptions{},
+		CenterOffsetX: -(w * 0.5),
+		CenterOffsetY: -(h * 0.5),
+		TickSpeed:     1.0 / 60.0,
+		Tick:          0,
 	}
 
 	c.LookAt(lookAtX, lookAtY)
-	c.tempTargetX = lookAtX
-	c.tempTargetY = lookAtY
+	c.TempTargetX = lookAtX
+	c.TempTargetY = lookAtY
 	return c
 }
 
@@ -107,7 +112,7 @@ func (cam *Camera) smoothDampX(targetX float64) float64 {
 	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
 
 	// Calculate change with max speed
-	changeX := cam.tempTargetX - targetX
+	changeX := cam.TempTargetX - targetX
 	originalToX := targetX
 	maxChangeX := cam.SmoothOptions.SmoothDampMaxSpeedX * smoothTimeX
 	maxChangeXSq := maxChangeX * maxChangeX
@@ -117,20 +122,20 @@ func (cam *Camera) smoothDampX(targetX float64) float64 {
 		changeX = math.Copysign(maxChangeX, changeX)
 	}
 
-	targetX = cam.tempTargetX - changeX
+	targetX = cam.TempTargetX - changeX
 
 	// Calculate velocity and output with exponential decay
-	tempVelocityX := (cam.currentVelocityX + changeX*omegaX) * 0.016666666666666666
-	cam.currentVelocityX = (cam.currentVelocityX - tempVelocityX*omegaX) * expX
+	tempVelocityX := (cam.CurrentVelocityX + changeX*omegaX) * 0.016666666666666666
+	cam.CurrentVelocityX = (cam.CurrentVelocityX - tempVelocityX*omegaX) * expX
 	outputX := targetX + (changeX+tempVelocityX)*expX
 
 	// Check if we've overshot the target
-	origMinusCurrentX := originalToX - cam.tempTargetX
+	origMinusCurrentX := originalToX - cam.TempTargetX
 	outMinusOrigX := outputX - originalToX
 
 	if origMinusCurrentX*outMinusOrigX > 0 {
 		outputX = originalToX
-		cam.currentVelocityX = (outputX - originalToX) / 0.016666666666666666
+		cam.CurrentVelocityX = (outputX - originalToX) / 0.016666666666666666
 	}
 
 	return outputX
@@ -147,7 +152,7 @@ func (cam *Camera) smoothDampY(targetY float64) float64 {
 	expY := 1.0 / (1.0 + xY + 0.48*xY*xY + 0.235*xY*xY*xY)
 
 	// Calculate change with max speed
-	changeY := cam.tempTargetY - targetY
+	changeY := cam.TempTargetY - targetY
 	originalToY := targetY
 	maxChangeY := cam.SmoothOptions.SmoothDampMaxSpeedY * smoothTimeY
 	maxChangeYSq := maxChangeY * maxChangeY
@@ -157,20 +162,20 @@ func (cam *Camera) smoothDampY(targetY float64) float64 {
 		changeY = math.Copysign(maxChangeY, changeY)
 	}
 
-	targetY = cam.tempTargetY - changeY
+	targetY = cam.TempTargetY - changeY
 
 	// Calculate velocity and output with exponential decay
-	tempVelocityY := (cam.currentVelocityY + changeY*omegaY) * 0.016666666666666666
-	cam.currentVelocityY = (cam.currentVelocityY - tempVelocityY*omegaY) * expY
+	tempVelocityY := (cam.CurrentVelocityY + changeY*omegaY) * 0.016666666666666666
+	cam.CurrentVelocityY = (cam.CurrentVelocityY - tempVelocityY*omegaY) * expY
 	outputY := targetY + (changeY+tempVelocityY)*expY
 
 	// Check if we've overshot the target
-	origMinusCurrentY := originalToY - cam.tempTargetY
+	origMinusCurrentY := originalToY - cam.TempTargetY
 	outMinusOrigY := outputY - originalToY
 
 	if origMinusCurrentY*outMinusOrigY > 0 {
 		outputY = originalToY
-		cam.currentVelocityY = (outputY - originalToY) / 0.016666666666666666
+		cam.CurrentVelocityY = (outputY - originalToY) / 0.016666666666666666
 	}
 
 	return outputY
@@ -184,119 +189,114 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 	switch cam.SmoothType {
 	case SmoothDamp:
 		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
-			cam.tempTargetX = cam.smoothDampX(targetX)
-			cam.tempTargetY = cam.smoothDampY(targetY)
-			cam.TopLeftX = cam.tempTargetX
-			cam.TopLeftY = cam.tempTargetY
+			cam.TempTargetX = cam.smoothDampX(targetX)
+			cam.TempTargetY = cam.smoothDampY(targetY)
+			cam.X = cam.TempTargetX
+			cam.Y = cam.TempTargetY
 		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
-			cam.tempTargetX = cam.smoothDampX(targetX)
-			cam.TopLeftX = cam.tempTargetX
-			cam.TopLeftY = targetY
+			cam.TempTargetX = cam.smoothDampX(targetX)
+			cam.X = cam.TempTargetX
+			cam.Y = targetY
 		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
-			cam.tempTargetY = cam.smoothDampY(targetY)
-			cam.TopLeftY = cam.tempTargetY
-			cam.TopLeftX = targetX
+			cam.TempTargetY = cam.smoothDampY(targetY)
+			cam.Y = cam.TempTargetY
+			cam.X = targetX
 		} else {
-			cam.TopLeftX = targetX
-			cam.TopLeftY = targetY
+			cam.X = targetX
+			cam.Y = targetY
 		}
 	case Lerp:
 		if !cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
-			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
-			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
-			cam.TopLeftX = cam.tempTargetX
-			cam.TopLeftY = cam.tempTargetY
+			cam.TempTargetX = lerp(cam.TempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
+			cam.TempTargetY = lerp(cam.TempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
+			cam.X = cam.TempTargetX
+			cam.Y = cam.TempTargetY
 		} else if !cam.XAxisSmoothingDisabled && cam.YAxisSmoothingDisabled {
-			cam.tempTargetX = lerp(cam.tempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
-			cam.TopLeftX = cam.tempTargetX
-			cam.TopLeftY = targetY
+			cam.TempTargetX = lerp(cam.TempTargetX, targetX, cam.SmoothOptions.LerpSpeedX)
+			cam.X = cam.TempTargetX
+			cam.Y = targetY
 		} else if cam.XAxisSmoothingDisabled && !cam.YAxisSmoothingDisabled {
-			cam.tempTargetY = lerp(cam.tempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
-			cam.TopLeftY = cam.tempTargetY
-			cam.TopLeftX = targetX
+			cam.TempTargetY = lerp(cam.TempTargetY, targetY, cam.SmoothOptions.LerpSpeedY)
+			cam.Y = cam.TempTargetY
+			cam.X = targetX
 		} else {
-			cam.TopLeftX = targetX
-			cam.TopLeftY = targetY
+			cam.X = targetX
+			cam.Y = targetY
 		}
 	default:
-		cam.TopLeftX = targetX
-		cam.TopLeftY = targetY
+		cam.X = targetX
+		cam.Y = targetY
 	}
 	if cam.ShakeEnabled {
-		if cam.trauma > 0 {
-			var shake = math.Pow(cam.trauma, 2)
-			noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale, 0, 0)
-			noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(0, cam.tick*cam.ShakeOptions.TimeScale, 0)
-			noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(0, 0, cam.tick*cam.ShakeOptions.TimeScale)
+		if cam.Trauma > 0 {
+			var shake = math.Pow(cam.Trauma, 2)
+			noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(cam.Tick*cam.ShakeOptions.TimeScale, 0, 0)
+			noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(0, cam.Tick*cam.ShakeOptions.TimeScale, 0)
+			noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(0, 0, cam.Tick*cam.ShakeOptions.TimeScale)
 
-			cam.traumaOffsetX = noiseValueX * cam.ShakeOptions.MaxX * shake
-			cam.traumaOffsetY = noiseValueY * cam.ShakeOptions.MaxY * shake
-			cam.actualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
+			cam.TraumaOffsetX = noiseValueX * cam.ShakeOptions.MaxX * shake
+			cam.TraumaOffsetY = noiseValueY * cam.ShakeOptions.MaxY * shake
+			cam.ActualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
 
-			noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(cam.tick*cam.ShakeOptions.TimeScale+300, 0, 0)
-			cam.zoomFactorShake = noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake
-			cam.zoomFactorShake *= cam.ZoomFactor
-			cam.zoomFactorShake += cam.ZoomFactor
+			noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(cam.Tick*cam.ShakeOptions.TimeScale+300, 0, 0)
+			cam.ZoomFactorShake = noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake
+			cam.ZoomFactorShake *= cam.ZoomFactor
+			cam.ZoomFactorShake += cam.ZoomFactor
 
 			// clamp
-			cam.trauma = min(max(cam.trauma-(cam.tickSpeed*cam.ShakeOptions.Decay), 0), 1)
+			cam.Trauma = min(max(cam.Trauma-(cam.TickSpeed*cam.ShakeOptions.Decay), 0), 1)
 
 		} else {
-			cam.actualAngle = 0.0
-			cam.zoomFactorShake = cam.ZoomFactor
+			cam.ActualAngle = 0.0
+			cam.ZoomFactorShake = cam.ZoomFactor
 		}
 
 		// offset
-		cam.actualAngle += cam.angle
-		cam.TopLeftX += cam.traumaOffsetX
-		cam.TopLeftY += cam.traumaOffsetY
+		cam.ActualAngle += cam.Angle
+		cam.X += cam.TraumaOffsetX
+		cam.Y += cam.TraumaOffsetY
 
 		// tick
-		cam.tick += cam.tickSpeed
-		if cam.tick > 1000000 {
-			cam.tick = 0
+		cam.Tick += cam.TickSpeed
+		if cam.Tick > 1000000 {
+			cam.Tick = 0
 		}
 
 	} else {
-		cam.zoomFactorShake = cam.ZoomFactor
-		cam.actualAngle = cam.angle
+		cam.ZoomFactorShake = cam.ZoomFactor
+		cam.ActualAngle = cam.Angle
 
-		cam.TopLeftX += cam.centerOffsetX
-		cam.TopLeftY += cam.centerOffsetY
+		cam.X += cam.CenterOffsetX
+		cam.Y += cam.CenterOffsetY
 
-		cam.trauma = 0
-		cam.traumaOffsetX, cam.traumaOffsetY = 0, 0
+		cam.Trauma = 0
+		cam.TraumaOffsetX, cam.TraumaOffsetY = 0, 0
 	}
 }
 
 // AddTrauma adds trauma. Factor is in the range [0-1]
 func (cam *Camera) AddTrauma(factor float64) {
 	if cam.ShakeEnabled {
-		cam.trauma = min(max(cam.trauma+factor, 0), 1) // clamp
+		cam.Trauma = min(max(cam.Trauma+factor, 0), 1) // clamp
 	}
-}
-
-// TopLeft returns top-left position of the camera in world-space
-func (cam *Camera) TopLeft() (X float64, Y float64) {
-	return cam.TopLeftX, cam.TopLeftY
 }
 
 // Right returns the right edge position of the camera in world-space.
 func (cam *Camera) Right() float64 {
-	return cam.TopLeftX + cam.w
+	return cam.X + cam.Width
 }
 
 // Bottom returns the bottom edge position of the camera in world-space.
 func (cam *Camera) Bottom() float64 {
-	return cam.TopLeftY + cam.h
+	return cam.Y + cam.Height
 }
 
 // SetTopLeft sets top-left position of the camera in world-space.
 //
 // Unlike the LookAt() method, the position is set directly (teleport).
 func (cam *Camera) SetTopLeft(x, y float64) {
-	cam.TopLeftX, cam.TopLeftY = x, y
-	cam.tempTargetX, cam.tempTargetY = cam.Center()
+	cam.X, cam.Y = x, y
+	cam.TempTargetX, cam.TempTargetY = cam.Center()
 
 }
 
@@ -307,55 +307,24 @@ func (cam *Camera) SetTopLeft(x, y float64) {
 // Can be used to cancel follow camera and teleport to target.
 func (cam *Camera) SetCenter(x, y float64) {
 	cam.LookAt(x, y)
-	cam.tempTargetX, cam.tempTargetY = x, y
+	cam.TempTargetX, cam.TempTargetY = x, y
 }
 
 // Center returns center point of the camera in world-space
 func (cam *Camera) Center() (X float64, Y float64) {
-	return cam.TopLeftX - cam.centerOffsetX, cam.TopLeftY - cam.centerOffsetY
+	return cam.X - cam.CenterOffsetX, cam.Y - cam.CenterOffsetY
 }
 
-// ActualAngle returns camera rotation angle (including the angle of trauma shaking.).
-//
-// The unit is radian.
-func (cam *Camera) ActualAngle() (angle float64) {
-	return cam.actualAngle
-}
-
-// Angle returns camera rotation angle (The angle of trauma shake is not included.).
-//
-// The unit is radian.
-func (cam *Camera) Angle() (angle float64) {
-	return cam.angle
-}
-
-// SetAngle sets rotation. The unit is radian.
-func (cam *Camera) SetAngle(angle float64) {
-	cam.angle = angle
-}
-
-// Width returns width of the camera
-func (cam *Camera) Width() float64 {
-	return cam.w
-}
-
-// Height returns height of the camera
-func (cam *Camera) Height() float64 {
-	return cam.h
-}
-
-// SetSize sets camera rectangle size from center.
+// SetSize sets camera rectangle size
 func (cam *Camera) SetSize(w, h float64) {
-	cx, cy := cam.Center()
-	cam.w, cam.h = w, h
-	cam.centerOffsetX = -(w * 0.5)
-	cam.centerOffsetY = -(h * 0.5)
-	cam.LookAt(cx, cy)
+	cam.Width, cam.Height = w, h
+	cam.CenterOffsetX = -(w * 0.5)
+	cam.CenterOffsetY = -(h * 0.5)
 }
 
 // Reset resets rotation and zoom factor to zero
 func (cam *Camera) Reset() {
-	cam.angle, cam.ZoomFactor, cam.zoomFactorShake = 0.0, 1.0, 1.0
+	cam.Angle, cam.ZoomFactor, cam.ZoomFactorShake = 0.0, 1.0, 1.0
 }
 
 const cameraStats = `TargetX: %.2f
@@ -385,10 +354,10 @@ func (cam *Camera) String() string {
 
 	return fmt.Sprintf(
 		cameraStats,
-		cam.TopLeftX-cam.centerOffsetX,
-		cam.TopLeftY-cam.centerOffsetY,
-		cam.actualAngle,
-		cam.zoomFactorShake,
+		cam.X-cam.CenterOffsetX,
+		cam.Y-cam.CenterOffsetY,
+		cam.ActualAngle,
+		cam.ZoomFactorShake,
 		cam.ShakeEnabled,
 		smoothTypeStr,
 		cam.SmoothOptions.LerpSpeedX,
@@ -422,28 +391,24 @@ func (cam *Camera) ApplyCameraTransformToPoint(x, y float64) (float64, float64) 
 }
 
 // ApplyCameraTransform applies geometric transformation to given geoM
-func (cam *Camera) ApplyCameraTransform(geoM *ebiten.GeoM) {
-	geoM.Translate(-cam.TopLeftX, -cam.TopLeftY)                             // camera movement
-	geoM.Translate(cam.centerOffsetX, cam.centerOffsetY)                     // rotate and scale from center.
-	geoM.Rotate(cam.actualAngle)                                             // rotate
-	geoM.Scale(cam.zoomFactorShake, cam.zoomFactorShake)                     // apply zoom factor
-	geoM.Translate(math.Abs(cam.centerOffsetX), math.Abs(cam.centerOffsetY)) // restore center translation
+func (cam *Camera) ApplyCameraTransform(g *ebiten.GeoM) {
+	g.Translate(-cam.X, -cam.Y)                                           // camera movement
+	g.Translate(cam.CenterOffsetX, cam.CenterOffsetY)                     // rotate and scale from center.
+	g.Rotate(cam.ActualAngle)                                             // rotate
+	g.Scale(cam.ZoomFactorShake, cam.ZoomFactorShake)                     // apply zoom factor
+	g.Translate(math.Abs(cam.CenterOffsetX), math.Abs(cam.CenterOffsetY)) // restore center translation
 }
 
 // Draw applies the Camera's geometric transformation then draws the object on the screen with drawing options.
 func (cam *Camera) Draw(worldObject *ebiten.Image, worldObjectOps *ebiten.DrawImageOptions, screen *ebiten.Image) {
-	cam.drawOptions = worldObjectOps
-	cam.ApplyCameraTransform(&cam.drawOptions.GeoM)
-	screen.DrawImage(worldObject, cam.drawOptions)
-	cam.drawOptions.GeoM.Reset()
+	cam.ApplyCameraTransform(&worldObjectOps.GeoM)
+	screen.DrawImage(worldObject, worldObjectOps)
 }
 
 // DrawWithColorM applies the Camera's geometric transformation then draws the object on the screen with colorm package drawing options.
 func (cam *Camera) DrawWithColorM(worldObject *ebiten.Image, cm colorm.ColorM, worldObjectOps *colorm.DrawImageOptions, screen *ebiten.Image) {
-	cam.drawOptionsCM = worldObjectOps
-	cam.ApplyCameraTransform(&cam.drawOptionsCM.GeoM)
+	cam.ApplyCameraTransform(&worldObjectOps.GeoM)
 	colorm.DrawImage(screen, worldObject, cm, worldObjectOps)
-	cam.drawOptionsCM.GeoM.Reset()
 }
 
 type ShakeOptions struct {
