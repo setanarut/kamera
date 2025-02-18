@@ -23,7 +23,7 @@ Arrow Keys -- Decrease/Increase camera smoothing speed
               SmoothDampTime: Smaller value will reach the target faster.
 `
 
-var ScreenWidth, ScreenHeight = 720, 480
+var ScreenWidth, ScreenHeight = 800, 600
 
 const crossHairLength float32 = 200.0
 
@@ -48,7 +48,6 @@ var TileMap = [][]uint8{
 func init() {
 	Controller.SetPhyicsScale(2.2)
 	cam.SmoothType = kamera.SmoothDamp
-	cam.SmoothOptions.SmoothDampTimeY = 1
 }
 
 func Translate(box *[4]float64, x, y float64) {
@@ -202,7 +201,7 @@ func (g *Game) Draw(s *ebiten.Image) {
 	vector.StrokeLine(s, cx, cy-crossHairLength, cx, cy+crossHairLength, 1, color.Gray{200}, false)
 
 	ebitenutil.DebugPrintAt(s, Controls, 14, 0)
-	ebitenutil.DebugPrintAt(s, cam.String(), 14, 300)
+	ebitenutil.DebugPrintAt(s, cam.String(), 14, 150)
 }
 
 func Axis() (axisX, axisY float64) {
