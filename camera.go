@@ -306,8 +306,8 @@ func (cam *Camera) SetTopLeft(x, y float64) {
 //
 // Can be used to cancel follow camera and teleport to target.
 func (cam *Camera) SetCenter(x, y float64) {
-	cam.LookAt(x, y)
 	cam.TempTargetX, cam.TempTargetY = x, y
+	cam.LookAt(x, y)
 }
 
 // Center returns center point of the camera in world-space
