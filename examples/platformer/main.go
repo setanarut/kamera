@@ -13,29 +13,26 @@ import (
 	"github.com/setanarut/tilecollider"
 )
 
-var Controls = `
-WASD -------- Move player    
-Space ------- Jump
-Shift ------- Run
-Tab --------- Change camera smoothing type
-Arrow Keys -- Decrease/Increase camera smoothing speed
-              LerpSpeed: Smaller value will reach the target slower.
-              SmoothDampTime: Smaller value will reach the target faster.
+const crossHairLength float32 = 90.0
+
+var helpText = `
+PLAYER CONTROLS
+
+WASD - Move player    
+Space - Jump
+Shift - Run
+
+CAMERA CONTROLS
+
+T - Add 1.0 trauma
+Tab - Change camera smoothing type
+X - Enable/Disable Shake
+Arrow Keys - Decrease/Increase camera smoothing speed
+             LerpSpeed: Smaller value will reach the target slower.
+             SmoothDampTime: Smaller value will reach the target faster.
 `
 
-var ScreenWidth, ScreenHeight = 800, 600
-
-const crossHairLength float32 = 200.0
-
-func main() {
-
-	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
-	if err := ebiten.RunGame(&Game{}); err != nil {
-		log.Fatal(err)
-	}
-}
-
-var TileMap = [][]uint8{
+var tileMap = [][]uint8{
 	{1, 0, 1, 0, 1, 1, 0, 1},
 	{1, 0, 0, 0, 0, 0, 0, 1},
 	{1, 1, 0, 0, 0, 1, 0, 1},
@@ -45,29 +42,45 @@ var TileMap = [][]uint8{
 	{1, 0, 0, 0, 0, 0, 0, 1},
 	{1, 1, 1, 1, 1, 1, 1, 1}}
 
-func init() {
-	Controller.SetPhyicsScale(2.2)
-	cam.SmoothType = kamera.SmoothDamp
-}
-
-func Translate(box *[4]float64, x, y float64) {
-	box[0] += x
-	box[1] += y
-}
-
 var (
-	Offset   = [2]int{0, 0}
-	GridSize = [2]int{8, 8}
-	TileSize = [2]int{64, 64}
-	Box      = [4]float64{70, 70, 24, 32}
-	Vel      = [2]float64{0, 4}
-	cam      = kamera.NewCamera(Box[0], Box[1], float64(ScreenWidth), float64(ScreenHeight))
+	screenWidth, screenHeight = 800, 600
+	offset                    = [2]int{0, 0}
+	gridSize                  = [2]int{8, 8}
+	tileSize                  = [2]int{64, 64}
+	box                       = [4]float64{70, 70, 24, 32}
+	vel                       = [2]float64{0, 4}
+	cam                       = kamera.NewCamera(box[0], box[1], float64(screenWidth), float64(screenHeight))
+	controller                = NewPlayerController()
+	collider                  = tilecollider.NewCollider(tileMap, tileSize[0], tileSize[1])
 )
 
-var Controller = NewPlayerController()
-var collider = tilecollider.NewCollider(TileMap, TileSize[0], TileSize[1])
+func init() {
+	cam.SmoothType = kamera.SmoothDamp
+	cam.ShakeEnabled = true
+
+	controller.SetPhyicsScale(2.2)
+}
+
+func main() {
+	ebiten.SetWindowSize(screenWidth, screenHeight)
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func Translate(bx *[4]float64, x, y float64) {
+	bx[0] += x
+	bx[1] += y
+}
 
 func (g *Game) Update() error {
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
+		cam.ShakeEnabled = !cam.ShakeEnabled
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+		cam.AddTrauma(1.0)
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyDown) {
 		switch cam.SmoothType {
@@ -117,53 +130,54 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
 		switch cam.SmoothType {
 		case kamera.None:
-			cam.SetCenter(Box[0]+Box[2]/2, Box[1]+Box[3]/2)
+			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
 			cam.SmoothType = kamera.Lerp
 		case kamera.Lerp:
-			cam.SetCenter(Box[0]+Box[2]/2, Box[1]+Box[3]/2)
+			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
 			cam.SmoothType = kamera.SmoothDamp
 		case kamera.SmoothDamp:
-			cam.SetCenter(Box[0]+Box[2]/2, Box[1]+Box[3]/2)
+			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
 			cam.SmoothType = kamera.None
 		}
 	}
 
-	if Vel[1] < 0 {
-		Controller.IsOnFloor = false
+	if vel[1] < 0 {
+		controller.IsOnFloor = false
 	}
-	Vel = Controller.ProcessVelocity(Vel)
+	vel = controller.ProcessVelocity(vel)
 	dx, dy := collider.Collide(
-		Box[0],
-		Box[1],
-		Box[2],
-		Box[3],
-		Vel[0],
-		Vel[1],
-		func(ci []tilecollider.CollisionInfo[uint8], f1, f2 float64) {
-
-			for _, v := range ci {
-				if v.Normal[1] == -1 {
-					Controller.IsOnFloor = true
+		box[0],
+		box[1],
+		box[2],
+		box[3],
+		vel[0],
+		vel[1],
+		func(infos []tilecollider.CollisionInfo[uint8], _, _ float64) {
+			for _, info := range infos {
+				if info.Normal[1] == -1 {
+					controller.IsOnFloor = true
 				}
-				if v.Normal[1] == 1 {
-					Controller.IsJumping = false
-					Vel[1] = 0
+				if info.Normal[1] == 1 {
+					controller.IsJumping = false
+					vel[1] = 0
 				}
-				if v.Normal[0] == 1 || v.Normal[0] == -1 {
-					Vel[0] = 0
+				if info.Normal[0] == 1 || info.Normal[0] == -1 {
+					vel[0] = 0
 				}
 			}
 		},
 	)
 
-	Translate(&Box, dx, dy)
-	cam.LookAt(Box[0]+Box[2]/2, Box[1]+Box[3]/2)
+	Translate(&box, dx, dy)
+
+	// Update camera
+	cam.LookAt(box[0]+box[2]/2, box[1]+box[3]/2)
 
 	return nil
 }
 
 func (g *Game) Layout(w, h int) (int, int) {
-	return ScreenWidth, ScreenHeight
+	return screenWidth, screenHeight
 }
 
 type Game struct{}
@@ -171,19 +185,20 @@ type Game struct{}
 func (g *Game) Draw(s *ebiten.Image) {
 
 	// Draw tiles
-	for y, row := range TileMap {
+	for y, row := range tileMap {
 		for x, value := range row {
 			if value != 0 {
-				px, py := float64(x*TileSize[0]), float64(y*TileSize[1])
+				px, py := float64(x*tileSize[0]), float64(y*tileSize[1])
 				geom := &ebiten.GeoM{}
 				cam.ApplyCameraTransform(geom)
 				px, py = geom.Apply(px, py)
-				vector.DrawFilledRect(
+				vector.StrokeRect(
 					s,
 					float32(px),
 					float32(py),
-					float32(TileSize[0]),
-					float32(TileSize[1]),
+					float32(tileSize[0]),
+					float32(tileSize[1]),
+					1,
 					color.RGBA{R: 80, G: 80, B: 200, A: 255},
 					false,
 				)
@@ -192,16 +207,18 @@ func (g *Game) Draw(s *ebiten.Image) {
 	}
 
 	// Draw player
-	x, y := cam.ApplyCameraTransformToPoint(Box[0], Box[1])
-	vector.DrawFilledRect(s, float32(x), float32(y), float32(Box[2]), float32(Box[3]), color.Gray{128}, false)
+	x, y := cam.ApplyCameraTransformToPoint(box[0], box[1])
+	vector.DrawFilledRect(s, float32(x), float32(y), float32(box[2]), float32(box[3]), color.Gray{100}, false)
 
 	// Draw camera crosshair
-	cx, cy := float32(ScreenWidth/2), float32(ScreenHeight/2)
-	vector.StrokeLine(s, cx-crossHairLength, cy, cx+crossHairLength, cy, 1, color.Gray{200}, false)
-	vector.StrokeLine(s, cx, cy-crossHairLength, cx, cy+crossHairLength, 1, color.Gray{200}, false)
+	cx, cy := float32(screenWidth/2), float32(screenHeight/2)
+	vector.StrokeLine(s, cx-crossHairLength, cy, cx+crossHairLength, cy, 1, color.RGBA{255, 255, 0, 255}, false)
+	vector.StrokeLine(s, cx, cy-crossHairLength, cx, cy+crossHairLength, 1, color.RGBA{255, 255, 0, 255}, false)
 
-	ebitenutil.DebugPrintAt(s, Controls, 14, 0)
-	ebitenutil.DebugPrintAt(s, cam.String(), 14, 150)
+	// Draw help text
+	ebitenutil.DebugPrintAt(s, helpText, 14, 0)
+	ebitenutil.DebugPrintAt(s, "CAMERA STATS", 14, 250)
+	ebitenutil.DebugPrintAt(s, cam.String(), 14, 280)
 }
 
 func Axis() (axisX, axisY float64) {
@@ -221,7 +238,6 @@ func Axis() (axisX, axisY float64) {
 }
 
 type PlayerController struct {
-	// Constants (replaced magic numbers with named constants)
 	MinSpeed         float64
 	MaxSpeed         float64
 	MaxWalkSpeed     float64
@@ -254,7 +270,6 @@ type PlayerController struct {
 }
 
 func NewPlayerController() *PlayerController {
-	// Oyuncu fizik sabitleri
 	const (
 		minSpeed              = 0.07421875
 		maxSpeed              = 2.5625
@@ -436,7 +451,6 @@ func (pc *PlayerController) ProcessVelocity(vel [2]float64) [2]float64 {
 		if math.Abs(vel[0]) < pc.minSpeedValue {
 			vel[0] = 0.0
 		} else {
-			// Manually implementing moveToward() for deceleration
 			if vel[0] > 0 {
 				vel[0] -= pc.accel
 				if vel[0] < 0 {

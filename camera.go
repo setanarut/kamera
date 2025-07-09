@@ -223,6 +223,9 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 			cam.X = targetX
 			cam.Y = targetY
 		}
+	case None:
+		cam.X = targetX
+		cam.Y = targetY
 	default:
 		cam.X = targetX
 		cam.Y = targetY
@@ -255,6 +258,8 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		cam.ActualAngle += cam.Angle
 		cam.X += cam.TraumaOffsetX
 		cam.Y += cam.TraumaOffsetY
+		cam.X += cam.CenterOffsetX
+		cam.Y += cam.CenterOffsetY
 
 		// tick
 		cam.Tick += cam.TickSpeed
@@ -329,6 +334,9 @@ func (cam *Camera) Reset() {
 
 const cameraStats = `TargetX: %.2f
 TargetY: %.2f
+Top-left X: %.2f
+Top-left Y: %.2f
+Size: %.2f %.2f
 Cam Rotation: %.2f
 Zoom factor: %.2f
 ShakeEnabled: %v
@@ -356,6 +364,9 @@ func (cam *Camera) String() string {
 		cameraStats,
 		cam.X-cam.CenterOffsetX,
 		cam.Y-cam.CenterOffsetY,
+		cam.X,
+		cam.Y,
+		cam.Width, cam.Height,
 		cam.ActualAngle,
 		cam.ZoomFactorShake,
 		cam.ShakeEnabled,

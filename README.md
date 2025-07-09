@@ -24,6 +24,7 @@ A pseudo code:
 ```Go
 func (g *Game) Update() error {
   g.MainCamera.LookAt(player.X, player.Y)
+  playerDrawImageOptions.GeoM.Reset()
   // Apply all world-space `playerDrawImageOptions.GeoM{}` transform here
  }
 func (g *Game) Draw(screen *ebiten.Image) {

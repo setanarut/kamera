@@ -110,8 +110,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	cm.ChangeHSV(2, 1, 0.5)
 
 	// Draw backgorund tiles
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			colormDIO.GeoM.Reset()
 			colormDIO.GeoM.Translate(float64(x*300), float64(y*300))
 			cam.DrawWithColorM(spriteSheet, cm, colormDIO, screen)
