@@ -46,6 +46,8 @@ type Camera struct {
 	ZoomFactor float64
 	// SmoothType is the camera movement smoothing type.
 	SmoothType SmoothType
+	// Trauma factor. Factor is in the range [0-1]. Use AddTrauma() function
+	Trauma float64
 	// SmoothOptions holds the camera movement smoothing settings
 	SmoothOptions *SmoothOptions
 	// ShakeOptions holds the camera shake options.
@@ -53,32 +55,35 @@ type Camera struct {
 	// If ShakeEnabled is false, AddTrauma() has no effect and shake is always 0.
 	//
 	// The default value is false
-	ShakeEnabled                                                bool
-	XAxisSmoothingDisabled                                      bool
-	YAxisSmoothingDisabled                                      bool
-	TickSpeed, Tick, Trauma, ZoomFactorShake                    float64
+	ShakeEnabled bool
+	// XAxisSmoothingDisabled disables the smoothing of the X axis if it's true.
+	XAxisSmoothingDisabled bool
+	// YAxisSmoothingDisabled disables the smoothing of the Y axis if it's true.
+	YAxisSmoothingDisabled bool
+	// Internal camera values. Do not change directly.
+	TickSpeed, Tick, ZoomFactorShake float64
+	// Internal camera values. Do not change directly.
 	TempTargetX, CenterOffsetX, TraumaOffsetX, CurrentVelocityX float64
+	// Internal camera values. Do not change directly.
 	TempTargetY, CenterOffsetY, TraumaOffsetY, CurrentVelocityY float64
 }
 
 // NewCamera returns new Camera
 func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 	c := &Camera{
-		ZoomFactor:    1.0,
-		SmoothType:    None,
-		SmoothOptions: DefaultSmoothOptions(),
-		ShakeOptions:  DefaultCameraShakeOptions(),
-		// private
+		ZoomFactor:      1.0,
+		SmoothType:      None,
+		SmoothOptions:   DefaultSmoothOptions(),
+		ShakeOptions:    DefaultCameraShakeOptions(),
 		Width:           w,
 		Height:          h,
 		Angle:           0,
 		ZoomFactorShake: 1.0,
 		Trauma:          0,
-		// DrawOptions:     &ebiten.DrawImageOptions{},
-		CenterOffsetX: -(w * 0.5),
-		CenterOffsetY: -(h * 0.5),
-		TickSpeed:     1.0 / 60.0,
-		Tick:          0,
+		CenterOffsetX:   -(w * 0.5),
+		CenterOffsetY:   -(h * 0.5),
+		TickSpeed:       1.0 / 60.0,
+		Tick:            0,
 	}
 
 	c.LookAt(lookAtX, lookAtY)
