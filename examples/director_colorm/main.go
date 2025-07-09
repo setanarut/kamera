@@ -34,23 +34,16 @@ Backspace     Reset camera
 R             Rotate                     
 `
 	w, h                                = 1024., 768.
-	camSpeed, zoomSpeedFactor, rotSpeed = 7.0, 1.02, 0.02
-	targetX, targetY                    = w / 2, h / 2
+	camSpeed, zoomSpeedFactor, rotSpeed = 2.0, 1.02, 0.02
+	targetX, targetY                    = 0., 0.
 	cam                                 = kamera.NewCamera(targetX, targetY, w, h)
-	colormDIO                           = &colorm.DrawImageOptions{}
+	dio                                 = &colorm.DrawImageOptions{}
 	spriteSheet                         *ebiten.Image
 )
 
 type Game struct{}
 
 func (g *Game) Update() error {
-
-	aX, aY := Normalize(Axis())
-
-	targetX += aX * camSpeed
-	targetY += aY * camSpeed
-
-	cam.LookAt(targetX, targetY)
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
 		cam.AddTrauma(1.0)
@@ -64,7 +57,7 @@ func (g *Game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		targetX, targetY = rand.Float64()*w, rand.Float64()*h
+		targetX, targetY = rand.Float64()*200, rand.Float64()*200
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
@@ -96,27 +89,28 @@ func (g *Game) Update() error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
-		targetX, targetY = w/2, h/2
+		targetX, targetY = 0, 0
+		cam.SetCenter(0, 0)
 		cam.Reset()
 	}
+
+	cam.LookAt(targetX, targetY)
+	dio.GeoM.Reset()
+	aX, aY := Normalize(Axis())
+	aX *= camSpeed
+	aY *= camSpeed
+
+	targetX += aX
+	targetY += aY
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-
 	var cm colorm.ColorM
 
 	cm.ChangeHSV(2, 1, 0.5)
-
-	// Draw backgorund tiles
-	for y := range 4 {
-		for x := range 4 {
-			colormDIO.GeoM.Reset()
-			colormDIO.GeoM.Translate(float64(x*300), float64(y*300))
-			cam.DrawWithColorM(spriteSheet, cm, colormDIO, screen)
-		}
-	}
+	cam.DrawWithColorM(spriteSheet, cm, dio, screen)
 
 	// Draw camera crosshair
 	cx, cy := float32(w/2), float32(h/2)

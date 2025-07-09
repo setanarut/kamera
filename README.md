@@ -48,3 +48,11 @@ Run director example on your local machine
 ```console
 go run github.com/setanarut/kamera/v2/examples/director@latest
 ```
+
+### Director (colorm package)
+
+Run director_colorm example on your local machine
+
+```console
+go run github.com/setanarut/kamera/v2/examples/director_colorm@latest
+```

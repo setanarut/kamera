@@ -44,10 +44,6 @@ type Game struct{}
 
 func (g *Game) Update() error {
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
-		cam.ShakeEnabled = !cam.ShakeEnabled
-	}
-
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
 		cam.AddTrauma(1.0)
 	}
@@ -60,7 +56,7 @@ func (g *Game) Update() error {
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		targetX, targetY = rand.Float64()*w, rand.Float64()*h
+		targetX, targetY = rand.Float64()*200, rand.Float64()*200
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
@@ -126,8 +122,8 @@ func (g *Game) Layout(width, height int) (int, int) {
 }
 
 func main() {
-	cam.SmoothType = kamera.Lerp
-	cam.ShakeEnabled = false
+	cam.SmoothType = kamera.SmoothDamp
+	cam.ShakeEnabled = true
 	img, _, err := image.Decode(bytes.NewReader(images.Gophers_jpg))
 	if err != nil {
 		log.Fatal(err)
