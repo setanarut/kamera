@@ -47,17 +47,23 @@ var (
 	offset                    = [2]int{0, 0}
 	gridSize                  = [2]int{8, 8}
 	tileSize                  = [2]int{64, 64}
-	box                       = [4]float64{70, 70, 24, 32}
+	playerBox                 = [4]float64{70, 70, 24, 32} // x, y, w, h
 	vel                       = [2]float64{0, 4}
-	cam                       = kamera.NewCamera(box[0], box[1], float64(screenWidth), float64(screenHeight))
+	cam                       = kamera.NewCamera(playerBox[0], playerBox[1], float64(screenWidth), float64(screenHeight))
 	controller                = NewPlayerController()
 	collider                  = tilecollider.NewCollider(tileMap, tileSize[0], tileSize[1])
+	tileDIO                   = &ebiten.DrawImageOptions{}
+	playerDIO                 = &ebiten.DrawImageOptions{}
+	tileImage                 = ebiten.NewImage(tileSize[0], tileSize[1])
+	playerImage               = ebiten.NewImage(24, 32)
 )
 
 func init() {
 	cam.SmoothType = kamera.SmoothDamp
 	cam.ShakeEnabled = true
 
+	tileImage.Fill(color.RGBA{0, 0, 255, 0})
+	playerImage.Fill(color.Gray{100})
 	controller.SetPhyicsScale(2.2)
 }
 
@@ -130,13 +136,13 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
 		switch cam.SmoothType {
 		case kamera.None:
-			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
+			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
 			cam.SmoothType = kamera.Lerp
 		case kamera.Lerp:
-			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
+			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
 			cam.SmoothType = kamera.SmoothDamp
 		case kamera.SmoothDamp:
-			cam.SetCenter(box[0]+box[2]/2, box[1]+box[3]/2)
+			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
 			cam.SmoothType = kamera.None
 		}
 	}
@@ -146,10 +152,10 @@ func (g *Game) Update() error {
 	}
 	vel = controller.ProcessVelocity(vel)
 	dx, dy := collider.Collide(
-		box[0],
-		box[1],
-		box[2],
-		box[3],
+		playerBox[0],
+		playerBox[1],
+		playerBox[2],
+		playerBox[3],
 		vel[0],
 		vel[1],
 		func(infos []tilecollider.CollisionInfo[uint8], _, _ float64) {
@@ -168,10 +174,10 @@ func (g *Game) Update() error {
 		},
 	)
 
-	Translate(&box, dx, dy)
+	Translate(&playerBox, dx, dy)
 
 	// Update camera
-	cam.LookAt(box[0]+box[2]/2, box[1]+box[3]/2)
+	cam.LookAt(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
 
 	return nil
 }
@@ -188,27 +194,17 @@ func (g *Game) Draw(s *ebiten.Image) {
 	for y, row := range tileMap {
 		for x, value := range row {
 			if value != 0 {
-				px, py := float64(x*tileSize[0]), float64(y*tileSize[1])
-				geom := &ebiten.GeoM{}
-				cam.ApplyCameraTransform(geom)
-				px, py = geom.Apply(px, py)
-				vector.StrokeRect(
-					s,
-					float32(px),
-					float32(py),
-					float32(tileSize[0]),
-					float32(tileSize[1]),
-					1,
-					color.RGBA{R: 80, G: 80, B: 200, A: 255},
-					false,
-				)
+				tileDIO.GeoM.Reset()
+				tileDIO.GeoM.Translate(float64(x*tileSize[0]), float64(y*tileSize[1]))
+				cam.Draw(tileImage, tileDIO, s)
 			}
 		}
 	}
 
 	// Draw player
-	x, y := cam.ApplyCameraTransformToPoint(box[0], box[1])
-	vector.DrawFilledRect(s, float32(x), float32(y), float32(box[2]), float32(box[3]), color.Gray{100}, false)
+	playerDIO.GeoM.Reset()
+	playerDIO.GeoM.Translate(playerBox[0], playerBox[1])
+	cam.Draw(playerImage, playerDIO, s)
 
 	// Draw camera crosshair
 	cx, cy := float32(screenWidth/2), float32(screenHeight/2)

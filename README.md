@@ -23,14 +23,17 @@ A pseudo code:
 
 ```Go
 func (g *Game) Update() error {
-  g.MainCamera.LookAt(player.X, player.Y)
-  playerDrawImageOptions.GeoM.Reset()
-  // Apply all world-space `playerDrawImageOptions.GeoM{}` transform here
+  MainCamera.LookAt(playerCenter.X, playerCenter.Y)
+  return nil
  }
+
 func (g *Game) Draw(screen *ebiten.Image) {
-  g.MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
+  playerDrawImageOptions.GeoM.Reset() // GeoM must be reset
+  playerDrawImageOptions.GeoM.Translate(playerTopLeft.X, playerTopLeft.Y) // Move player
+  MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
  }
 ```
+
 ## Examples
 
 ### Platformer

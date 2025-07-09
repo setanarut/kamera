@@ -93,8 +93,6 @@ func (g *Game) Update() error {
 		cam.Reset()
 	}
 
-	cam.LookAt(targetX, targetY)
-	dio.GeoM.Reset()
 	aX, aY := Normalize(Axis())
 	aX *= camSpeed
 	aY *= camSpeed
@@ -102,10 +100,13 @@ func (g *Game) Update() error {
 	targetX += aX
 	targetY += aY
 
+	cam.LookAt(targetX, targetY)
+
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	dio.GeoM.Reset() // GeoM must be reset
 	cam.Draw(spriteSheet, dio, screen)
 
 	// Draw camera crosshair
