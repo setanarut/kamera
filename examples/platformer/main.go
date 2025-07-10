@@ -15,21 +15,19 @@ import (
 
 const crossHairLength float32 = 90.0
 
-var helpText = `
-PLAYER CONTROLS
+var helpText = `CAMERA CONTROLS
+E/Q - Zoom in/out
+R - Rotate  
+T - Add 1.0 trauma
+Arrow Keys - Decrease/Increase camera smoothing speed
+Tab - Change camera smoothing type
+X - Enable/Disable Shake
+Backspace - Reset camera
 
+PLAYER CONTROLS
 WASD - Move player    
 Space - Jump
 Shift - Run
-
-CAMERA CONTROLS
-
-T - Add 1.0 trauma
-Tab - Change camera smoothing type
-X - Enable/Disable Shake
-Arrow Keys - Decrease/Increase camera smoothing speed
-             LerpSpeed: Smaller value will reach the target slower.
-             SmoothDampTime: Smaller value will reach the target faster.
 `
 
 var tileMap = [][]uint8{
@@ -43,7 +41,7 @@ var tileMap = [][]uint8{
 	{1, 1, 1, 1, 1, 1, 1, 1}}
 
 var (
-	screenWidth, screenHeight = 800, 600
+	screenWidth, screenHeight = 854, 480
 	offset                    = [2]int{0, 0}
 	gridSize                  = [2]int{8, 8}
 	tileSize                  = [2]int{64, 64}
@@ -80,6 +78,24 @@ func Translate(bx *[4]float64, x, y float64) {
 }
 
 func (g *Game) Update() error {
+
+	if ebiten.IsKeyPressed(ebiten.KeyR) {
+		cam.Angle += 0.02
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyF) {
+		cam.Angle -= 0.02
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
+		cam.Reset()
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
+		cam.ZoomFactor /= 1.02
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyE) { // zoom in
+		cam.ZoomFactor *= 1.02
+	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
 		cam.ShakeEnabled = !cam.ShakeEnabled
@@ -213,8 +229,8 @@ func (g *Game) Draw(s *ebiten.Image) {
 
 	// Draw help text
 	ebitenutil.DebugPrintAt(s, helpText, 14, 0)
-	ebitenutil.DebugPrintAt(s, "CAMERA STATS", 14, 250)
-	ebitenutil.DebugPrintAt(s, cam.String(), 14, 280)
+	ebitenutil.DebugPrintAt(s, "CAMERA STATS", 14, 220)
+	ebitenutil.DebugPrintAt(s, cam.String(), 14, 235)
 }
 
 func Axis() (axisX, axisY float64) {
