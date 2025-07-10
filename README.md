@@ -8,6 +8,8 @@ Camera package for Ebitengine.
 import "github.com/setanarut/kamera/v2"
 ```
 
+https://github.com/user-attachments/assets/58787fbe-5788-43d4-9560-482dcc965efb
+
 ## Features
 
 - Camera shake effect with [fastnoise](https://github.com/setanarut/fastnoise) library noise types.
