@@ -22,6 +22,11 @@ const (
 	SmoothDamp
 )
 
+const (
+	deltaTime     float64 = 1.0 / 60.0
+	noise3DOffset float64 = 300.0
+)
+
 // Camera object.
 //
 // Use the `Camera.LookAt()` to align the center of the camera to the target.
@@ -61,7 +66,7 @@ type Camera struct {
 	// YAxisSmoothingDisabled disables the smoothing of the Y axis if it's true.
 	YAxisSmoothingDisabled bool
 	// Internal camera values. Do not change directly.
-	TickSpeed, Tick, ZoomFactorShake float64
+	Tick, ZoomFactorShake float64
 	// Internal camera values. Do not change directly.
 	TempTargetX, CenterOffsetX, TraumaOffsetX, CurrentVelocityX float64
 	// Internal camera values. Do not change directly.
@@ -82,7 +87,6 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 		Trauma:          0,
 		CenterOffsetX:   -(w * 0.5),
 		CenterOffsetY:   -(h * 0.5),
-		TickSpeed:       1.0 / 60.0,
 		Tick:            0,
 	}
 
@@ -113,7 +117,7 @@ func (cam *Camera) smoothDampX(targetX float64) float64 {
 
 	// Calculate exponential decay factor for X
 	omegaX := 2.0 / smoothTimeX
-	xX := omegaX * 0.016666666666666666
+	xX := omegaX * deltaTime
 	expX := 1.0 / (1.0 + xX + 0.48*xX*xX + 0.235*xX*xX*xX)
 
 	// Calculate change with max speed
@@ -130,7 +134,7 @@ func (cam *Camera) smoothDampX(targetX float64) float64 {
 	targetX = cam.TempTargetX - changeX
 
 	// Calculate velocity and output with exponential decay
-	tempVelocityX := (cam.CurrentVelocityX + changeX*omegaX) * 0.016666666666666666
+	tempVelocityX := (cam.CurrentVelocityX + changeX*omegaX) * deltaTime
 	cam.CurrentVelocityX = (cam.CurrentVelocityX - tempVelocityX*omegaX) * expX
 	outputX := targetX + (changeX+tempVelocityX)*expX
 
@@ -140,7 +144,7 @@ func (cam *Camera) smoothDampX(targetX float64) float64 {
 
 	if origMinusCurrentX*outMinusOrigX > 0 {
 		outputX = originalToX
-		cam.CurrentVelocityX = (outputX - originalToX) / 0.016666666666666666
+		cam.CurrentVelocityX = (outputX - originalToX) / deltaTime
 	}
 
 	return outputX
@@ -170,7 +174,7 @@ func (cam *Camera) smoothDampY(targetY float64) float64 {
 	targetY = cam.TempTargetY - changeY
 
 	// Calculate velocity and output with exponential decay
-	tempVelocityY := (cam.CurrentVelocityY + changeY*omegaY) * 0.016666666666666666
+	tempVelocityY := (cam.CurrentVelocityY + changeY*omegaY) * deltaTime
 	cam.CurrentVelocityY = (cam.CurrentVelocityY - tempVelocityY*omegaY) * expY
 	outputY := targetY + (changeY+tempVelocityY)*expY
 
@@ -180,7 +184,7 @@ func (cam *Camera) smoothDampY(targetY float64) float64 {
 
 	if origMinusCurrentY*outMinusOrigY > 0 {
 		outputY = originalToY
-		cam.CurrentVelocityY = (outputY - originalToY) / 0.016666666666666666
+		cam.CurrentVelocityY = (outputY - originalToY) / deltaTime
 	}
 
 	return outputY
@@ -246,13 +250,13 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 			cam.TraumaOffsetY = noiseValueY * cam.ShakeOptions.MaxY * shake
 			cam.ActualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
 
-			noiseValueZoom := fastnoise.Value3D(cam.Tick*cam.ShakeOptions.TimeScale+300, 0, 0, cam.ShakeOptions.Noise)
+			noiseValueZoom := fastnoise.Value3D(cam.Tick*cam.ShakeOptions.TimeScale+noise3DOffset, 0, 0, cam.ShakeOptions.Noise)
 			cam.ZoomFactorShake = noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake
 			cam.ZoomFactorShake *= cam.ZoomFactor
 			cam.ZoomFactorShake += cam.ZoomFactor
 
 			// clamp
-			cam.Trauma = min(max(cam.Trauma-(cam.TickSpeed*cam.ShakeOptions.Decay), 0), 1)
+			cam.Trauma = min(max(cam.Trauma-(deltaTime*cam.ShakeOptions.Decay), 0), 1)
 
 		} else {
 			cam.ActualAngle = 0.0
@@ -267,7 +271,7 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 		cam.Y += cam.CenterOffsetY
 
 		// tick
-		cam.Tick += cam.TickSpeed
+		cam.Tick += deltaTime
 		if cam.Tick > 1000000 {
 			cam.Tick = 0
 		}
