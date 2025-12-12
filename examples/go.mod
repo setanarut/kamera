@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.5
-	github.com/setanarut/kamera/v2 v2.97.4
+	github.com/setanarut/kamera/v2 v2.97.5
 	github.com/setanarut/tilecollider v1.5.1
 )
 
