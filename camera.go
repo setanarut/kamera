@@ -94,7 +94,7 @@ func NewCamera(lookAtX, lookAtY, w, h float64) *Camera {
 
 func DefaultCameraShakeOptions() *ShakeOptions {
 	opt := &ShakeOptions{
-		Noise:         fastnoise.New[float64](),
+		Noise:         fastnoise.NewNoiseState[float64](),
 		MaxX:          10.0,
 		MaxY:          10.0,
 		MaxAngle:      0.05,
@@ -238,15 +238,15 @@ func (cam *Camera) LookAt(targetX, targetY float64) {
 	if cam.ShakeEnabled {
 		if cam.Trauma > 0 {
 			var shake = math.Pow(cam.Trauma, 2)
-			noiseValueX := cam.ShakeOptions.Noise.GetNoise3D(cam.Tick*cam.ShakeOptions.TimeScale, 0, 0)
-			noiseValueY := cam.ShakeOptions.Noise.GetNoise3D(0, cam.Tick*cam.ShakeOptions.TimeScale, 0)
-			noiseValueAngle := cam.ShakeOptions.Noise.GetNoise3D(0, 0, cam.Tick*cam.ShakeOptions.TimeScale)
+			noiseValueX := fastnoise.Value3D(cam.Tick*cam.ShakeOptions.TimeScale, 0, 0, cam.ShakeOptions.Noise)
+			noiseValueY := fastnoise.Value3D(0, cam.Tick*cam.ShakeOptions.TimeScale, 0, cam.ShakeOptions.Noise)
+			noiseValueAngle := fastnoise.Value3D(0, 0, cam.Tick*cam.ShakeOptions.TimeScale, cam.ShakeOptions.Noise)
 
 			cam.TraumaOffsetX = noiseValueX * cam.ShakeOptions.MaxX * shake
 			cam.TraumaOffsetY = noiseValueY * cam.ShakeOptions.MaxY * shake
 			cam.ActualAngle = noiseValueAngle * cam.ShakeOptions.MaxAngle * shake
 
-			noiseValueZoom := cam.ShakeOptions.Noise.GetNoise3D(cam.Tick*cam.ShakeOptions.TimeScale+300, 0, 0)
+			noiseValueZoom := fastnoise.Value3D(cam.Tick*cam.ShakeOptions.TimeScale+300, 0, 0, cam.ShakeOptions.Noise)
 			cam.ZoomFactorShake = noiseValueZoom * cam.ShakeOptions.MaxZoomFactor * shake
 			cam.ZoomFactorShake *= cam.ZoomFactor
 			cam.ZoomFactorShake += cam.ZoomFactor
@@ -429,7 +429,7 @@ func (cam *Camera) DrawWithColorM(worldObject *ebiten.Image, cm colorm.ColorM, w
 
 type ShakeOptions struct {
 	// Noise generator for noise types and settings.
-	Noise         *fastnoise.State[float64]
+	Noise         *fastnoise.NoiseState[float64]
 	MaxX          float64 // Maximum X-axis shake. 0 means disabled
 	MaxY          float64 // Maximum Y-axis shake. 0 means disabled
 	MaxAngle      float64 // Max shake angle (radians). 0 means disabled
