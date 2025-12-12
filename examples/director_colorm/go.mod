@@ -1,10 +1,10 @@
 module github.com/setanarut/kamera/examples/director_colorm
 
-go 1.25.5
+go 1.25
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.5
-	github.com/setanarut/kamera/v2 v2.97.5
+	github.com/setanarut/kamera/v2 v2.98.0
 )
 
 require (
