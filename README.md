@@ -43,7 +43,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 Run platformer example on your local machine
 
 ```console
-go run github.com/setanarut/kamera/v2/examples/platformer@latest
+go run github.com/setanarut/kamera/examples/platformer@latest
 ```
 
 ### Director
@@ -51,7 +51,7 @@ go run github.com/setanarut/kamera/v2/examples/platformer@latest
 Run director example on your local machine
 
 ```console
-go run github.com/setanarut/kamera/v2/examples/director@latest
+go run github.com/setanarut/kamera/examples/director@latest
 ```
 
 ### Director (colorm package)
@@ -59,5 +59,5 @@ go run github.com/setanarut/kamera/v2/examples/director@latest
 Run director_colorm example on your local machine
 
 ```console
-go run github.com/setanarut/kamera/v2/examples/director_colorm@latest
+go run github.com/setanarut/kamera/examples/director_colorm@latest
 ```

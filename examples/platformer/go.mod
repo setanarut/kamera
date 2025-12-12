@@ -1,6 +1,6 @@
-module github.com/setanarut/kamera/v2/examples
+module github.com/setanarut/kamera/examples/platformer
 
-go 1.25
+go 1.25.5
 
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.5
@@ -14,7 +14,7 @@ require (
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/jezek/xgb v1.2.0 // indirect
 	github.com/setanarut/fastnoise v1.2.0 // indirect
-	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
+	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 )
