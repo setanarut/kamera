@@ -22,5 +22,6 @@
 
 # Go workspace file
 go.work
+go.work.sum
 examples/.DS_Store
 .DS_Store
