@@ -1,484 +1,215 @@
 package main
 
 import (
+	"bytes"
+	_ "embed"
+	"fmt"
 	"image/color"
+	_ "image/png"
 	"log"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/setanarut/coll"
 	"github.com/setanarut/kamera/v2"
-	"github.com/setanarut/tilecollider"
+	"github.com/setanarut/kamera/v2/examples"
+	"github.com/setanarut/v"
+	"golang.org/x/image/colornames"
 )
 
-const crossHairLength float32 = 90.0
+const CameraDeadZoneX = 40.0
+const CameraDeadZoneOffset = 100.0
 
-var helpText = `CAMERA CONTROLS
-E/Q - Zoom in/out
-R - Rotate  
-T - Add 1.0 trauma
-Arrow Keys - Decrease/Increase camera smoothing speed
-Tab - Change camera smoothing type
-X - Enable/Disable Shake
-Backspace - Reset camera
+const (
+	ScreenWidth   = 620
+	ScreenHeight  = 360
+	MoveSpeedX    = 6.125
+	JumpPower     = -14.46
+	Gravity       = 0.66
+	PlatformSpeed = 0.05
+)
 
-PLAYER CONTROLS
-WASD - Move player    
-Space - Jump
-Shift - Run
-`
+//go:embed bg.png
+var bgImageBytes []byte
 
-var tileMap = [][]uint8{
-	{1, 0, 1, 0, 1, 1, 0, 1},
-	{1, 0, 0, 0, 0, 0, 0, 1},
-	{1, 1, 0, 0, 0, 1, 0, 1},
-	{0, 0, 0, 1, 0, 1, 0, 1},
-	{0, 0, 0, 0, 0, 1, 0, 1},
-	{1, 0, 1, 1, 1, 1, 0, 1},
-	{1, 0, 0, 0, 0, 0, 0, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1}}
+var cam *kamera.Camera
 
 var (
-	screenWidth, screenHeight = 854, 480
-	offset                    = [2]int{0, 0}
-	gridSize                  = [2]int{8, 8}
-	tileSize                  = [2]int{64, 64}
-	playerBox                 = [4]float64{70, 70, 24, 32} // x, y, w, h
-	vel                       = [2]float64{0, 4}
-	cam                       = kamera.NewCamera(playerBox[0], playerBox[1], float64(screenWidth), float64(screenHeight))
-	controller                = NewPlayerController()
-	collider                  = tilecollider.NewCollider(tileMap, tileSize[0], tileSize[1])
-	tileDIO                   = &ebiten.DrawImageOptions{}
-	playerDIO                 = &ebiten.DrawImageOptions{}
-	tileImage                 = ebiten.NewImage(tileSize[0], tileSize[1])
-	playerImage               = ebiten.NewImage(24, 32)
+	player        = coll.NewAABB(1000, ScreenHeight, 12, 24)
+	playerDelta   = v.Vec{0, 0}
+	playerHitInfo = &coll.Hit{}
+)
+
+var (
+	bg    *ebiten.Image
+	im    = ebiten.NewImage(1, 1)
+	dio   = &colorm.DrawImageOptions{}
+	bgdio = &ebiten.DrawImageOptions{}
+	clrm  = colorm.ColorM{}
+)
+var (
+	platform               = coll.NewAABB(1000, 130, 64, 16)
+	platformDelta          = v.Vec{}
+	platformRotationCenter = platform.Pos
+	platformRadius         = 60.0
+	platformAngle          = 0.0
+	floorY                 float64
 )
 
 func init() {
-	cam.SmoothType = kamera.SmoothDamp
+
+	im.Fill(color.White)
+	var err error
+	bg, _, err = ebitenutil.NewImageFromReader(bytes.NewReader(bgImageBytes))
+	if err != nil {
+		fmt.Println(err)
+	}
+	floorY = float64(bg.Bounds().Dy()) - 70
+	player.SetBottom(floorY)
+
+	// init camera
+	cam = kamera.NewCamera(player.Pos.X, ScreenHeight/2, ScreenWidth, ScreenHeight)
 	cam.ShakeEnabled = true
+	cam.SmoothType = kamera.SmoothDamp
+	cam.SmoothOptions.SmoothDampTimeX = 0.15
 
-	tileImage.Fill(color.RGBA{0, 0, 255, 0})
-	playerImage.Fill(color.Gray{100})
-	controller.SetPhyicsScale(2.2)
 }
-
-func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	if err := ebiten.RunGame(&Game{}); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func Translate(bx *[4]float64, x, y float64) {
-	bx[0] += x
-	bx[1] += y
-}
-
-func (g *Game) Update() error {
-
-	if ebiten.IsKeyPressed(ebiten.KeyR) {
-		cam.Angle += 0.02
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyF) {
-		cam.Angle -= 0.02
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
-		cam.Reset()
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyQ) { // zoom out
-		cam.ZoomFactor /= 1.02
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyE) { // zoom in
-		cam.ZoomFactor *= 1.02
-	}
-
-	if inpututil.IsKeyJustPressed(ebiten.KeyX) {
-		cam.ShakeEnabled = !cam.ShakeEnabled
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
-		cam.AddTrauma(1.0)
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		switch cam.SmoothType {
-		case kamera.Lerp:
-			cam.SmoothOptions.LerpSpeedY -= 0.01
-			cam.SmoothOptions.LerpSpeedY = max(0, min(cam.SmoothOptions.LerpSpeedY, 1))
-
-		case kamera.SmoothDamp:
-			cam.SmoothOptions.SmoothDampTimeY += 0.01
-			cam.SmoothOptions.SmoothDampTimeY = max(0, min(cam.SmoothOptions.SmoothDampTimeY, 10))
-
-		}
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyUp) {
-		switch cam.SmoothType {
-		case kamera.Lerp:
-			cam.SmoothOptions.LerpSpeedY += 0.01
-			cam.SmoothOptions.LerpSpeedY = max(0, min(cam.SmoothOptions.LerpSpeedY, 1))
-		case kamera.SmoothDamp:
-			cam.SmoothOptions.SmoothDampTimeY -= 0.01
-			cam.SmoothOptions.SmoothDampTimeY = max(0, min(cam.SmoothOptions.SmoothDampTimeY, 10))
-		}
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		switch cam.SmoothType {
-		case kamera.Lerp:
-			cam.SmoothOptions.LerpSpeedX -= 0.01
-			cam.SmoothOptions.LerpSpeedX = max(0, min(cam.SmoothOptions.LerpSpeedX, 1))
-
-		case kamera.SmoothDamp:
-			cam.SmoothOptions.SmoothDampTimeX += 0.01
-			cam.SmoothOptions.SmoothDampTimeX = max(0, min(cam.SmoothOptions.SmoothDampTimeX, 10))
-
-		}
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyRight) {
-		switch cam.SmoothType {
-		case kamera.Lerp:
-			cam.SmoothOptions.LerpSpeedX += 0.01
-			cam.SmoothOptions.LerpSpeedX = max(0, min(cam.SmoothOptions.LerpSpeedX, 1))
-		case kamera.SmoothDamp:
-			cam.SmoothOptions.SmoothDampTimeX -= 0.01
-			cam.SmoothOptions.SmoothDampTimeX = max(0, min(cam.SmoothOptions.SmoothDampTimeX, 10))
-		}
-	}
-
-	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
-		switch cam.SmoothType {
-		case kamera.None:
-			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
-			cam.SmoothType = kamera.Lerp
-		case kamera.Lerp:
-			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
-			cam.SmoothType = kamera.SmoothDamp
-		case kamera.SmoothDamp:
-			cam.SetCenter(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
-			cam.SmoothType = kamera.None
-		}
-	}
-
-	if vel[1] < 0 {
-		controller.IsOnFloor = false
-	}
-	vel = controller.ProcessVelocity(vel)
-	dx, dy := collider.Collide(
-		playerBox[0],
-		playerBox[1],
-		playerBox[2],
-		playerBox[3],
-		vel[0],
-		vel[1],
-		func(infos []tilecollider.CollisionInfo[uint8], _, _ float64) {
-			for _, info := range infos {
-				if info.Normal[1] == -1 {
-					controller.IsOnFloor = true
-				}
-				if info.Normal[1] == 1 {
-					controller.IsJumping = false
-					vel[1] = 0
-				}
-				if info.Normal[0] == 1 || info.Normal[0] == -1 {
-					vel[0] = 0
-				}
+func calculateDeadZoneX(playerX float64) float64 {
+	camCenterX := cam.X - cam.CenterOffsetX
+	deltaX := playerX - camCenterX
+	targetX := playerX
+	if CameraDeadZoneX > 0 {
+		if math.Abs(deltaX) <= CameraDeadZoneX {
+			targetX = camCenterX
+		} else {
+			if deltaX > 0 {
+				targetX = playerX - CameraDeadZoneX
+			} else {
+				targetX = playerX + CameraDeadZoneX
 			}
-		},
-	)
-
-	Translate(&playerBox, dx, dy)
-
-	// Update camera
-	cam.LookAt(playerBox[0]+playerBox[2]/2, playerBox[1]+playerBox[3]/2)
-
-	return nil
-}
-
-func (g *Game) Layout(w, h int) (int, int) {
-	return screenWidth, screenHeight
+		}
+	}
+	return targetX
 }
 
 type Game struct{}
 
-func (g *Game) Draw(s *ebiten.Image) {
+func (g *Game) Update() error {
 
-	// Draw tiles
-	for y, row := range tileMap {
-		for x, value := range row {
-			if value != 0 {
-				tileDIO.GeoM.Reset()
-				tileDIO.GeoM.Translate(float64(x*tileSize[0]), float64(y*tileSize[1]))
-				cam.Draw(tileImage, tileDIO, s)
-			}
-		}
+	cam.LookAt(calculateDeadZoneX(player.Pos.X+CameraDeadZoneOffset), ScreenHeight/2)
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) {
+		cam.AddTrauma(1.0)
 	}
 
-	// Draw player
-	playerDIO.GeoM.Reset()
-	playerDIO.GeoM.Translate(playerBox[0], playerBox[1])
-	cam.Draw(playerImage, playerDIO, s)
+	movePlatform()
+	playerDelta.Y += Gravity
+	speed := examples.Axis().Unit().Scale(MoveSpeedX)
 
-	// Draw camera crosshair
-	cx, cy := float32(screenWidth/2), float32(screenHeight/2)
-	vector.StrokeLine(s, cx-crossHairLength, cy, cx+crossHairLength, cy, 1, color.RGBA{255, 255, 0, 255}, false)
-	vector.StrokeLine(s, cx, cy-crossHairLength, cx, cy+crossHairLength, 1, color.RGBA{255, 255, 0, 255}, false)
-
-	// Draw help text
-	ebitenutil.DebugPrintAt(s, helpText, 14, 0)
-	ebitenutil.DebugPrintAt(s, "CAMERA STATS", 14, 220)
-	ebitenutil.DebugPrintAt(s, cam.String(), 14, 235)
-}
-
-func Axis() (axisX, axisY float64) {
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		axisY -= 1
+	playerHitInfo.Reset()
+	hit := coll.BoxBoxSweep2(platform, player, platformDelta, playerDelta, playerHitInfo)
+	onGround := false
+	if hit && playerHitInfo.Normal.Y == -1 {
+		onGround = isOnPlatform(playerHitInfo)
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		axisY += 1
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		axisX -= 1
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		axisX += 1
-	}
-	return axisX, axisY
-}
-
-type PlayerController struct {
-	MinSpeed         float64
-	MaxSpeed         float64
-	MaxWalkSpeed     float64
-	MaxFallSpeed     float64
-	MaxFallSpeedCap  float64
-	MinSlowDownSpeed float64
-	WalkAcceleration float64
-	RunAcceleration  float64
-	WalkFriction     float64
-	SkidFriction     float64
-	StompSpeed       float64
-	StompSpeedCap    float64
-	JumpSpeed        [3]float64
-	LongJumpGravity  [3]float64
-	Gravity          float64
-	SpeedThresholds  [2]float64
-	// states
-	IsFacingLeft bool
-	IsRunning    bool
-	IsJumping    bool
-	IsFalling    bool
-	IsSkidding   bool
-	IsCrouching  bool
-	IsOnFloor    bool
-	// private
-	minSpeedValue       float64
-	maxSpeedValue       float64
-	accel               float64
-	speedThresholdIndex int
-}
-
-func NewPlayerController() *PlayerController {
-	const (
-		minSpeed              = 0.07421875
-		maxSpeed              = 2.5625
-		maxWalkSpeed          = 1.5625
-		maxFallSpeed          = 4.5
-		maxFallSpeedCap       = 4
-		minSlowDownSpeed      = 0.5625
-		walkAcceleration      = 0.037109375
-		runAcceleration       = 0.0556640625
-		walkFriction          = 0.05078125
-		skidFriction          = 0.1015625
-		stompSpeed            = 4
-		stompSpeedCap         = 4
-		jumpSpeedNormal       = -4
-		jumpSpeedRun          = -4
-		jumpSpeedLong         = -5
-		longJumpGravityNormal = 0.12
-		longJumpGravityRun    = 0.11
-		longJumpGravityLong   = 0.15
-		gravity               = 0.43
-		speedThreshold1       = 1
-		speedThreshold2       = 2.3125
-	)
-
-	pc := &PlayerController{
-		MinSpeed:         minSpeed,
-		MaxSpeed:         maxSpeed,
-		MaxWalkSpeed:     maxWalkSpeed,
-		MaxFallSpeed:     maxFallSpeed,
-		MaxFallSpeedCap:  maxFallSpeedCap,
-		MinSlowDownSpeed: minSlowDownSpeed,
-		WalkAcceleration: walkAcceleration,
-		RunAcceleration:  runAcceleration,
-		WalkFriction:     walkFriction,
-		SkidFriction:     skidFriction,
-		StompSpeed:       stompSpeed,
-		StompSpeedCap:    stompSpeedCap,
-
-		JumpSpeed:       [3]float64{jumpSpeedNormal, jumpSpeedRun, jumpSpeedLong},
-		LongJumpGravity: [3]float64{longJumpGravityNormal, longJumpGravityRun, longJumpGravityLong},
-		Gravity:         gravity,
-		SpeedThresholds: [2]float64{speedThreshold1, speedThreshold2},
-		IsFacingLeft:    false,
-		IsRunning:       false,
-
-		IsJumping:   false,
-		IsFalling:   false,
-		IsSkidding:  false,
-		IsCrouching: false,
-		IsOnFloor:   false,
-
-		speedThresholdIndex: 0,
-	}
-
-	pc.minSpeedValue = pc.MinSpeed
-	pc.maxSpeedValue = pc.MaxSpeed
-	pc.accel = pc.WalkAcceleration
-
-	return pc
-}
-
-func (pc *PlayerController) SetPhyicsScale(s float64) {
-	pc.MinSpeed *= s
-	pc.MaxSpeed *= s
-	pc.MaxWalkSpeed *= s
-	pc.MaxFallSpeed *= s
-	pc.MaxFallSpeedCap *= s
-	pc.MinSlowDownSpeed *= s
-	pc.WalkAcceleration *= s
-	pc.RunAcceleration *= s
-	pc.WalkFriction *= s
-	pc.SkidFriction *= s
-	pc.StompSpeed *= s
-	pc.StompSpeedCap *= s
-	pc.JumpSpeed[0] *= s
-	pc.JumpSpeed[1] *= s
-	pc.JumpSpeed[2] *= s
-	pc.LongJumpGravity[0] *= s
-	pc.LongJumpGravity[1] *= s
-	pc.LongJumpGravity[2] *= s
-	pc.Gravity *= s
-	pc.SpeedThresholds[0] *= s
-	pc.SpeedThresholds[1] *= s
-}
-
-func (pc *PlayerController) ProcessVelocity(vel [2]float64) [2]float64 {
-	inputAxisX, inputAxisY := Axis()
-
-	if pc.IsOnFloor {
-		pc.IsRunning = ebiten.IsKeyPressed(ebiten.KeyShift)
-		pc.IsCrouching = ebiten.IsKeyPressed(ebiten.KeyDown)
-		if pc.IsCrouching && inputAxisX != 0 {
-			pc.IsCrouching = false
-			inputAxisX = 0.0
-		}
-	}
-
-	if pc.IsOnFloor {
+	if onGround {
+		player.Pos = player.Pos.Add(playerDelta.Scale(playerHitInfo.Data))
+		player.Pos.Y = platform.Pos.Y + platformDelta.Y - player.Half.Y - platform.Half.Y
+		player.Pos.X += platformDelta.X + speed.X
+		playerDelta.X = platformDelta.X + speed.X
+		playerDelta.Y = platformDelta.Y
 		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-			pc.IsJumping = true
-			speed := math.Abs(vel[0])
-			pc.speedThresholdIndex = 0
-			if speed >= pc.SpeedThresholds[1] {
-				pc.speedThresholdIndex = 2
-			} else if speed >= pc.SpeedThresholds[0] {
-				pc.speedThresholdIndex = 1
-			}
-
-			vel[1] = pc.JumpSpeed[pc.speedThresholdIndex]
-
+			playerDelta.Y = JumpPower
 		}
 	} else {
-		gravityValue := pc.Gravity
-		if ebiten.IsKeyPressed(ebiten.KeySpace) && pc.IsJumping && vel[1] < 0 {
-			gravityValue = pc.LongJumpGravity[pc.speedThresholdIndex]
-		}
-		vel[1] += gravityValue
-		if vel[1] > pc.MaxFallSpeedCap {
-			vel[1] = pc.MaxFallSpeedCap
+		playerDelta.X = speed.X
+		player.Pos = player.Pos.Add(playerDelta)
+	}
+
+	platform.Pos = platform.Pos.Add(platformDelta)
+
+	if player.Bottom() >= floorY {
+		player.SetBottom(floorY)
+		playerDelta.Y = 0
+		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+			playerDelta.Y = JumpPower
 		}
 	}
 
-	// Update states
-	if vel[1] > 0 {
-		pc.IsJumping = false
-		pc.IsFalling = true
-	} else if pc.IsOnFloor {
-		pc.IsFalling = false
+	// inherit only the platform's fractional X offset to avoid sub-pixel jitter.
+	if onGround {
+		player.Pos.X = math.Floor(player.Pos.X) + Fract(platform.Pos.X)
 	}
 
-	if inputAxisX != 0 {
-		if pc.IsOnFloor {
-			if vel[0] != 0 {
-				pc.IsFacingLeft = inputAxisX < 0.0
-				pc.IsSkidding = vel[0] < 0.0 != pc.IsFacingLeft
-			}
-			if pc.IsSkidding {
-				pc.minSpeedValue = pc.MinSlowDownSpeed
-				pc.maxSpeedValue = pc.MaxWalkSpeed
-				pc.accel = pc.SkidFriction
-			} else if pc.IsRunning {
-				pc.minSpeedValue = pc.MinSpeed
-				pc.maxSpeedValue = pc.MaxSpeed
-				pc.accel = pc.RunAcceleration
-			} else {
-				pc.minSpeedValue = pc.MinSpeed
-				pc.maxSpeedValue = pc.MaxWalkSpeed
-				pc.accel = pc.WalkAcceleration
-			}
-		} else if pc.IsRunning && math.Abs(vel[0]) > pc.MaxWalkSpeed {
-			pc.maxSpeedValue = pc.MaxSpeed
-		} else {
-			pc.maxSpeedValue = pc.MaxWalkSpeed
-		}
-		targetSpeed := inputAxisX * pc.maxSpeedValue
+	return nil
+}
 
-		// Manually implementing moveToward()
-		if vel[0] < targetSpeed {
-			vel[0] += pc.accel
-			if vel[0] > targetSpeed {
-				vel[0] = targetSpeed
-			}
-		} else if vel[0] > targetSpeed {
-			vel[0] -= pc.accel
-			if vel[0] < targetSpeed {
-				vel[0] = targetSpeed
-			}
-		}
-
-	} else if pc.IsOnFloor && vel[0] != 0 {
-		if !pc.IsSkidding {
-			pc.accel = pc.WalkFriction
-		}
-		if inputAxisY != 0 {
-			pc.minSpeedValue = pc.MinSlowDownSpeed
-		} else {
-			pc.minSpeedValue = pc.MinSpeed
-		}
-		if math.Abs(vel[0]) < pc.minSpeedValue {
-			vel[0] = 0.0
-		} else {
-			if vel[0] > 0 {
-				vel[0] -= pc.accel
-				if vel[0] < 0 {
-					vel[0] = 0
-				}
-			} else {
-				vel[0] += pc.accel
-				if vel[0] > 0 {
-					vel[0] = 0
-				}
-			}
-		}
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(color.Gray{10})
+	for x := range 3 {
+		bgdio.GeoM.Reset()
+		bgdio.GeoM.Translate(float64(x)*float64(bg.Bounds().Dx()), 0)
+		cam.Draw(bg, bgdio, screen)
 	}
-	if math.Abs(vel[0]) < pc.MinSlowDownSpeed {
-		pc.IsSkidding = false
+	fillAABB(platform, screen, color.Gray{100})
+	fillAABB(player, screen, color.Gray{180})
+
+	//draw deadZone guides
+	centerX := (float32(ScreenWidth) / 2)
+	r := centerX + CameraDeadZoneX - CameraDeadZoneOffset
+	l := centerX - CameraDeadZoneX - CameraDeadZoneOffset
+	vector.StrokeLine(screen, r, 0, r, 1000, 1, colornames.Cyan, true)
+	vector.StrokeLine(screen, l, 0, l, 1000, 1, colornames.Cyan, true)
+
+	ebitenutil.DebugPrintAt(screen, "Space - Jump\nA/D - Move\nT - Trauma", 10, 10)
+}
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return ScreenWidth, ScreenHeight
+}
+
+func main() {
+	ebiten.SetScreenClearedEveryFrame(false)
+	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
+	ebiten.SetWindowTitle("Platformer Example")
+	if err := ebiten.RunGame(&Game{}); err != nil {
+		log.Fatal(fmt.Errorf("error running game: %w", err))
 	}
 
-	return vel
+}
+func fillAABB(box *coll.AABB, s *ebiten.Image, c color.Color) {
+	clrm.Reset()
+	clrm.ScaleWithColor(c)
+	dio.GeoM.Reset()
+	dio.GeoM.Scale(box.Half.X*2, box.Half.Y*2)
+	dio.GeoM.Translate(-box.Half.X, -box.Half.Y)
+	dio.GeoM.Translate(box.Pos.X, box.Pos.Y)
+	cam.DrawWithColorM(im, clrm, dio, s)
+}
+
+// Fract returns the fractional part of x.
+func Fract(x float64) float64 {
+	if x >= 0 {
+		return x - math.Floor(x)
+	}
+	return x - math.Ceil(x)
+}
+
+func isOnPlatform(hit *coll.Hit) bool {
+	playerPosAtHit := player.Pos.Add(playerDelta.Scale(hit.Data))
+	platformPosAtHit := platform.Pos.Add(platformDelta.Scale(hit.Data))
+	playerBottomAtHit := playerPosAtHit.Y + player.Half.Y
+	platformTopAtHit := platformPosAtHit.Y - platform.Half.Y
+	return playerBottomAtHit <= platformTopAtHit
+}
+
+func movePlatform() {
+	platformAngle += PlatformSpeed
+	newPlatCenterX := platformRotationCenter.X + math.Cos(platformAngle)*platformRadius
+	newPlatCenterY := platformRotationCenter.Y + math.Sin(platformAngle)*platformRadius
+	newPlatPos := v.Vec{X: newPlatCenterX, Y: newPlatCenterY}
+	platformDelta = newPlatPos.Sub(platform.Pos)
 }

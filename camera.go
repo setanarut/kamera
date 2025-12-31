@@ -329,6 +329,16 @@ func (cam *Camera) Center() (X float64, Y float64) {
 	return cam.X - cam.CenterOffsetX, cam.Y - cam.CenterOffsetY
 }
 
+// CenterX returns X axis center of the camera in world-space
+func (cam *Camera) CenterX() float64 {
+	return cam.X - cam.CenterOffsetX
+}
+
+// CenterY returns Y axis center of the camera in world-space
+func (cam *Camera) CenterY() float64 {
+	return cam.Y - cam.CenterOffsetY
+}
+
 // SetSize sets camera rectangle size
 func (cam *Camera) SetSize(w, h float64) {
 	cam.Width, cam.Height = w, h

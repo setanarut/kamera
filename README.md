@@ -10,6 +10,7 @@ import "github.com/setanarut/kamera/v2"
 
 https://github.com/user-attachments/assets/58787fbe-5788-43d4-9560-482dcc965efb
 
+
 ## Features
 
 - Camera shake effect with [fastnoise](https://github.com/setanarut/fastnoise) library noise types.
@@ -38,26 +39,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 ## Examples
 
-### Platformer
-
-Run platformer example on your local machine
-
-```console
-go run github.com/setanarut/kamera/examples/platformer@latest
-```
-
-### Director
-
-Run director example on your local machine
-
-```console
-go run github.com/setanarut/kamera/examples/director@latest
-```
-
-### Director (colorm package)
-
-Run director_colorm example on your local machine
-
-```console
-go run github.com/setanarut/kamera/examples/director_colorm@latest
-```
+1. Clone this repository
+2. In the terminal, change directory to the examples folder `cd examples`
+3. Run a demo with `go run ./folder_name` (`go run ./platformer`, `go run ./director`).
