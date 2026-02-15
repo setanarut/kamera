@@ -32,7 +32,7 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
   playerDrawImageOptions.GeoM.Reset() // GeoM must be reset
-  playerDrawImageOptions.GeoM.Translate(playerTopLeft.X, playerTopLeft.Y) // Move player
+  playerDrawImageOptions.GeoM.Translate(target.X, target.Y) // Move player
   MainCamera.Draw(playerImage, playerDrawImageOptions, screen)
  }
 ```
